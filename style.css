@@ -1,0 +1,32 @@
+/* Inline code only (direct child selector excludes <pre><code> blocks) */
+:not(pre) > code {
+  color: #1e3a8a !important;
+  background-color: #dbeafe !important;
+  padding: 2px 7px !important;
+  border-radius: 4px !important;
+  font-weight: 600 !important;
+  font-style: normal !important;
+}
+
+/* Code blocks: no scrollbars, wrap content for clean PDF export */
+.slidev-layout pre,
+.slidev-layout .shiki,
+.slidev-layout .slidev-code {
+  overflow: visible !important;
+  max-height: none !important;
+}
+
+.slidev-layout pre code,
+.slidev-layout .shiki code {
+  white-space: pre-wrap !important;
+  word-break: break-all !important;
+  overflow: visible !important;
+}
+
+/* Fix double-digit line numbers wrapping (default w-4 = 1rem is too narrow) */
+.slidev-code-line-numbers .slidev-code code .line::before {
+  width: 2rem !important;
+  min-width: 2rem !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+}
