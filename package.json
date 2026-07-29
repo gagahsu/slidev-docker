@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "slidev index.md",
-    "build": "slidev build",
-    "export": "slidev export"
+    "build": "slidev build index.md",
+    "export": "slidev export index.md"
   },
   "dependencies": {
     "@slidev/cli": "^52.14.2",
