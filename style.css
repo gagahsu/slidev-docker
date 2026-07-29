@@ -1,11 +1,12 @@
-/* Inline code only (direct child selector excludes <pre><code> blocks) */
-:not(pre) > code {
-  color: #1e3a8a !important;
-  background-color: #dbeafe !important;
+/* Restore inline code badge styling */
+.slidev-layout :not(pre) > code {
+  background-color: #e0ebff !important;
+  color: #0d2454 !important;
+  font-weight: 700 !important;
   padding: 2px 7px !important;
   border-radius: 4px !important;
-  font-weight: 600 !important;
-  font-style: normal !important;
+  font-size: 0.875em !important;
+  border: none !important;
 }
 
 /* Code blocks: no scrollbars, wrap content for clean PDF export */
@@ -30,3 +31,5 @@
   white-space: nowrap !important;
   flex-shrink: 0 !important;
 }
+
+* { -webkit-user-select: text !important; user-select: text !important; }

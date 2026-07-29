@@ -32,13 +32,13 @@ style: |
 ---
 
 <div class="flex flex-col justify-center items-center h-full" style="background: #ffffff;">
-  <p style="color: #2563eb; font-size: 1rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 1.2rem;">Docker 容器化課程</p>
-  <h1 style="color: #1e3a8a; font-size: 3.8rem; font-weight: 900; line-height: 1.15; margin-bottom: 1.5rem;">投影片主標題</h1>
-  <div style="height: 4px; width: 320px; background: linear-gradient(90deg, #2563eb, #60a5fa); border-radius: 2px; margin-bottom: 1.5rem;"></div>
-  <p style="color: #1d4ed8; font-size: 1.15rem; font-style: italic;">
+  <p style="color: #5eada0; font-size: 1rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 1.2rem;">Docker 容器化課程</p>
+  <h1 style="color: #1a5c5c; font-size: 3.8rem; font-weight: 900; line-height: 1.15; margin-bottom: 1.5rem;">投影片主標題</h1>
+  <div style="height: 4px; width: 320px; background: linear-gradient(90deg, #5eada0, #a7d9d0); border-radius: 2px; margin-bottom: 1.5rem;"></div>
+  <p style="color: #4a7c7c; font-size: 1.15rem; font-style: italic;">
     「一句話描述」
   </p>
-  <Link to="home" style="margin-top: 2rem; color: #2563eb; font-size: 0.9rem;">← 返回目錄</Link>
+  <Link to="home" style="margin-top: 2rem; color: #5eada0; font-size: 0.9rem;">← 返回目錄</Link>
 </div>
 
 ---
