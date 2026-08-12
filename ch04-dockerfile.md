@@ -59,11 +59,11 @@ layout: default
 
 <div class="text-left" style="font-size: 1.05rem; line-height: 2.2;">
 
-1. **Dockerfile 常用指令** — FROM / COPY / RUN / CMD / ENTRYPOINT / EXPOSE / ENV
-2. **docker build 與 Layer Cache** — 建構流程、快取命中與失效
-3. **Multi-stage Build 與 .dockerignore** — 縮小映像檔、排除無關檔案
-4. **練習題** — 從一份 Dockerfile 到最佳化
-5. **總結**
+- **Dockerfile 常用指令** — FROM / COPY / RUN / CMD / ENTRYPOINT / EXPOSE / ENV
+- **docker build 與 Layer Cache** — 建構流程、快取命中與失效
+- **Multi-stage Build 與 .dockerignore** — 縮小映像檔、排除無關檔案
+- **練習題** — 從一份 Dockerfile 到最佳化
+- **總結**
 
 </div>
 
@@ -84,8 +84,7 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# Part 1
-## Dockerfile 常用指令
+# Dockerfile 常用指令
 
 <!--
 我們先進入第一部分，來看 Dockerfile 裡最常見的幾個指令。
@@ -208,8 +207,7 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# Part 2
-## docker build 與 Layer Cache
+# docker build 與 Layer Cache
 
 <!--
 接下來進入第二部分，來看看 docker build 到底在背後做了什麼事，還有一個對建構效率影響很大的觀念：layer cache（層快取）。
@@ -324,8 +322,7 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# Part 3
-## Multi-stage Build 與 .dockerignore
+# Multi-stage Build 與 .dockerignore
 
 <!--
 第三部分我們來看兩個能讓映像檔更精簡、更乾淨的技巧：multi-stage build（多階段建構）跟 .dockerignore。
@@ -606,13 +603,17 @@ layout: default
 # 本章總結 — Dockerfile
 
 <table class="summary-table">
+<thead>
 <tr><th>主題</th><th>重點回顧</th></tr>
+</thead>
+<tbody>
 <tr><td>常用指令</td><td><code>FROM</code>、<code>COPY</code>、<code>RUN</code>、<code>CMD</code>、<code>ENTRYPOINT</code>、<code>EXPOSE</code>、<code>ENV</code>，各司其職</td></tr>
 <tr><td>ENV 語法</td><td>現行一律用 <code>ENV KEY=VALUE</code>，不用舊式空格寫法</td></tr>
 <tr><td>docker build</td><td>讀 Dockerfile 逐行執行，每行變成一個 layer；Docker 23.0+ 預設用 BuildKit</td></tr>
 <tr><td>Layer Cache</td><td>順序決定快取效益，常變動的指令放後面</td></tr>
 <tr><td>Multi-stage Build</td><td>用多個 <code>FROM</code> 階段，只把需要的成品搬進最終 image</td></tr>
 <tr><td>.dockerignore</td><td>排除不需要的檔案，避免機密外洩、加快 build</td></tr>
+</tbody>
 </table>
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">

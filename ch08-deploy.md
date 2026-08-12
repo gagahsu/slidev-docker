@@ -57,9 +57,9 @@ layout: default
 
 # Outline
 
-- **第一部分：環境變數管理與 .env**
-- **第二部分：Image 版本控制與 Tag 策略**
-- **第三部分：CI/CD 概念與推送至 Registry**
+- **環境變數管理與 .env**
+- **Image 版本控制與 Tag 策略**
+- **CI/CD 概念與推送至 Registry**
 - **練習題**
 - **總結：課程回顧**
 
@@ -80,7 +80,6 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# 第一部分
 # 環境變數管理與 .env
 
 <!--
@@ -233,7 +232,6 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# 第二部分
 # Image 版本控制與 Tag 策略
 
 <!--
@@ -334,7 +332,6 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# 第三部分
 # CI/CD 概念與推送至 Registry
 
 <!--
@@ -643,7 +640,10 @@ layout: default
 # 本章總結 — 課程回顧
 
 <table class="summary-table">
+<thead>
 <tr><th>章節</th><th>核心一句話</th></tr>
+</thead>
+<tbody>
 <tr><td>Ch1 Docker 簡介</td><td>Container 比 VM 更輕量，共用作業系統核心</td></tr>
 <tr><td>Ch2 映像檔管理</td><td>Image 是唯讀模板，Container 是執行實例</td></tr>
 <tr><td>Ch3 容器操作</td><td>run / exec / logs 是每天都會用到的基本功</td></tr>
@@ -652,6 +652,7 @@ layout: default
 <tr><td>Ch6 網路設定</td><td>自訂 bridge network 取代已淘汰的 --link</td></tr>
 <tr><td>Ch7 Volume 資料持久化</td><td>資料要活得比 container 久，就交給 Volume</td></tr>
 <tr><td>Ch8 部署實戰</td><td>.env 管密碼、tag 管版本、Registry 負責分享</td></tr>
+</tbody>
 </table>
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">

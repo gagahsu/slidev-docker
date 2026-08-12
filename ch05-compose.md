@@ -51,9 +51,9 @@ layout: default
 
 # Outline
 
-- **第一部分**：compose.yaml 語法結構
-- **第二部分**：docker compose 指令
-- **第三部分**：多容器應用範例（web + db）
+- **compose.yaml 語法結構**
+- **docker compose 指令**
+- **多容器應用範例（web + db）**
 - **練習題**：從簡單到進階
 - **總結**
 
@@ -66,7 +66,6 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# 第一部分
 # compose.yaml 語法結構
 
 <!--
@@ -187,7 +186,6 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# 第二部分
 # docker compose 指令
 
 <!--
@@ -268,7 +266,6 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# 第三部分
 # 多容器應用範例（web + db）
 
 <!--
@@ -506,12 +503,16 @@ volumes:
 # 本章總結 — Docker Compose
 
 <table class="summary-table">
+<thead>
 <tr><th>主題</th><th>重點回顧</th></tr>
+</thead>
+<tbody>
 <tr><td>compose.yaml</td><td>一份 YAML 檔案定義 services / networks / volumes</td></tr>
 <tr><td>版本</td><td>一律用 <code>docker compose</code>（v2 plugin），不用舊版 <code>docker-compose</code></td></tr>
 <tr><td>核心指令</td><td><code>up</code>、<code>down</code>、<code>logs</code>，加上 <code>-d</code>、<code>--build</code>、<code>-f</code>、<code>--tail</code> 等參數</td></tr>
 <tr><td>服務連線</td><td>同網路下用「服務名稱」互相連線，不用查 IP</td></tr>
 <tr><td>資料持久化</td><td>資料庫等狀態要掛 <code>volumes</code>，容器刪掉資料才不會不見</td></tr>
+</tbody>
 </table>
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">

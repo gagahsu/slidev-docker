@@ -55,9 +55,9 @@ layout: default
 
 # Outline
 
-- **第一部分**：Network Driver 種類（bridge / host / none）
-- **第二部分**：Port Mapping 與容器間通訊
-- **第三部分**：自訂 Network 與 DNS 解析
+- **Network Driver 種類**（bridge / host / none）
+- **Port Mapping 與容器間通訊**
+- **自訂 Network 與 DNS 解析**
 - **練習題** x2
 - **總結**
 
@@ -78,7 +78,6 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# 第一部分
 # Network Driver 種類
 
 <!--
@@ -176,7 +175,6 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# 第二部分
 # Port Mapping 與容器間通訊
 
 <!--
@@ -272,7 +270,6 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# 第三部分
 # 自訂 Network 與 DNS 解析
 
 <!--
@@ -559,12 +556,16 @@ layout: default
 # 本章總結 — 網路設定
 
 <table class="summary-table">
+<thead>
 <tr><th>重點</th><th>說明</th></tr>
+</thead>
+<tbody>
 <tr><td>bridge</td><td>預設模式，有隔離的私有網路</td></tr>
 <tr><td>host</td><td>容器直接共用主機網路</td></tr>
 <tr><td>none</td><td>完全沒有網路</td></tr>
 <tr><td>Port Mapping</td><td><code>-p 主機port:容器port</code>，把容器內服務開放給主機外部連線</td></tr>
 <tr><td>自訂 Network</td><td>提供內建 DNS，容器可用「名稱」互相通訊，取代已過時的 <code>--link</code></td></tr>
+</tbody>
 </table>
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">

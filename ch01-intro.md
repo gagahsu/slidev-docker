@@ -57,9 +57,9 @@ layout: default
 
 # Outline
 
-- **第一部分：為什麼需要容器化** — VM vs Container 的差異
-- **第二部分：Docker 架構** — Client / Daemon / Registry 怎麼合作
-- **第三部分：安裝與驗證** — 安裝 Docker Desktop、跑第一個 hello-world
+- **為什麼需要容器化** — VM vs Container 的差異
+- **Docker 架構** — Client / Daemon / Registry 怎麼合作
+- **安裝與驗證** — 安裝 Docker Desktop、跑第一個 hello-world
 - **練習** — 用課程專案 TaskBoard 走一次 `docker run` 流程
 
 <!--
@@ -111,7 +111,6 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# 第一部分
 # 為什麼需要容器化
 
 <!--
@@ -200,7 +199,6 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# 第二部分
 # Docker 架構
 
 <!--
@@ -273,7 +271,6 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# 第三部分
 # 安裝與驗證
 
 <!--
@@ -310,28 +307,270 @@ class: flex flex-col justify-center items-center text-center
 
 ---
 
-# 安裝 Docker Desktop — 範例
+# 安裝流程總覽
 
-```powershell
-# 個別使用者模式安裝（免管理員權限，推薦）
-"Docker Desktop Installer.exe" install --user
+<div class="grid grid-cols-4 gap-3 mt-6 text-center text-sm">
 
-# 用 PowerShell 執行並等待安裝完成
-Start-Process 'Docker Desktop Installer.exe' -Wait -ArgumentList 'install', '--user'
+<div class="p-3 rounded" style="background:#eef4ff; border:1px solid #c7dbff;">
+<div class="text-2xl">①</div>
+<b>下載</b><br/>官網取得 Installer.exe
+</div>
 
-# 安裝前後檢查 WSL 版本
-wsl --version
-wsl --update
-```
+<div class="p-3 rounded" style="background:#eef4ff; border:1px solid #c7dbff;">
+<div class="text-2xl">②</div>
+<b>安裝</b><br/>Configuration → 解壓 → 完成
+</div>
 
-安裝完成後，從開始功能表搜尋「Docker」並開啟 Docker Desktop，第一次啟動需要同意訂閱服務條款，之後 Docker Desktop 就會自動啟動 Daemon，讓我們可以開始使用 `docker` 指令。
+<div class="p-3 rounded" style="background:#eef4ff; border:1px solid #c7dbff;">
+<div class="text-2xl">③</div>
+<b>啟動</b><br/>同意條款 → 進主畫面
+</div>
+
+<div class="p-3 rounded" style="background:#e6f7f2; border:1px solid #a8ded0;">
+<div class="text-2xl">④</div>
+<b>驗證</b><br/><code>docker run hello-world</code>
+</div>
+
+</div>
+
+<div class="mt-8 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
+💡 接下來每一步都是<b>實機操作畫面</b>（Docker Desktop 4.86.0 / Windows 11），照著做就能裝完。
+</div>
 
 <!--
-這頁帶大家看實際的安裝指令。大部分人會直接用滑鼠雙擊安裝程式走互動式安裝，但如果是在公司內部要批次佈署，也可以用命令列參數自動化安裝，像這裡的 `--user` 就是指定用個別使用者模式，不需要系統管理員權限。
+在看實機畫面之前，先給大家一張流程總覽，心裡有個底。
 
-⚠️ 易錯點：第一次啟動 Docker Desktop 一定要記得同意授權條款，不然 Docker Desktop 是不會啟動的，這時候會覺得「怎麼裝完打不開」，其實只是條款還沒按同意。
+整個安裝只有四步：下載、安裝、啟動、驗證。接下來每一頁我都會放實際操作的畫面，大家可以一邊看一邊跟著做。
 
-預期結果：Docker Desktop 啟動之後，工作列會出現鯨魚圖示，圖示穩定顯示（不再轉圈圈）就代表 Daemon 已經準備好，我們可以打開終端機開始下指令了。
+要提醒的是，畫面版本是 Docker Desktop 4.86.0，如果你裝的版本比較新，畫面細節可能略有不同，但流程是一樣的。
+-->
+
+---
+
+# ① 下載 Docker Desktop
+
+<div class="grid grid-cols-3 gap-4">
+
+<div class="col-span-2">
+<img src="/docker-install-01-download-page.png" style="width: 100%; border-radius: 6px; border: 1px solid #d0d7de;" />
+</div>
+
+<div class="text-sm" style="color:#57606a;">
+
+**下載頁面**
+
+<a href="https://www.docker.com/products/docker-desktop/" target="_blank">docker.com/products/<br/>docker-desktop</a>
+
+按下藍色的 **Download Docker Desktop**，網站會自動偵測作業系統，Windows 會下載到 `Docker Desktop Installer.exe`。
+
+<div class="mt-3 p-2 bg-blue-50 border-l-4 border-blue-400 text-gray-700">
+安裝文件：<br/><a href="https://docs.docker.com/desktop/setup/install/windows-install/" target="_blank">docs.docker.com/desktop/<br/>setup/install/windows-install</a>
+</div>
+
+</div>
+
+</div>
+
+<!--
+第一步，到官方頁面下載安裝檔，網址是 docker.com/products/docker-desktop。
+
+畫面正中間這顆藍色的 Download Docker Desktop 按鈕就是下載入口，網站會自動偵測你的作業系統，推薦對應的版本。如果它偵測錯了，按鈕旁邊的下拉選單可以手動選 Windows / macOS / Linux。
+
+右邊我也放了官方安裝文件的連結，遇到比較特殊的環境問題可以去那邊查。
+-->
+
+---
+
+# ① 下載完成
+
+<div class="flex flex-col items-center">
+
+<img src="/docker-install-02-downloaded.png" style="width: 82%; border-radius: 6px; border: 1px solid #d0d7de;" />
+
+<p class="mt-3 text-sm" style="color: #57606a;">
+下載資料夾裡出現 <code>Docker Desktop Installer.exe</code>，檔案約 <b>600 MB</b>，<b>雙擊</b>它開始安裝
+</p>
+
+</div>
+
+<!--
+下載完成之後，到「下載」資料夾找 Docker Desktop Installer.exe。
+
+注意一下檔案大小，大約 600 MB，如果網路比較慢要等一下。如果你的檔案明顯小很多，很可能是下載中斷了，重新下載一次。
+
+找到之後雙擊它，就會進入安裝精靈。
+-->
+
+---
+
+# ② 安裝精靈 — Configuration
+
+<div class="grid grid-cols-2 gap-6 items-center">
+
+<div>
+<img src="/docker-install-03-config.png" style="width: 100%; border-radius: 6px; border: 1px solid #d0d7de;" />
+</div>
+
+<div class="text-sm" style="color:#57606a;">
+
+安裝精靈的第一個畫面，有兩個選項：
+
+- **Per-user installation（Recommended）** — 只裝給目前使用者，**不需要管理員權限**，使用 WSL 2 後端
+- **All-users installation** — 全機器安裝，需要管理員密碼
+- **Add shortcut to desktop** — 建立桌面捷徑，建議保留
+
+<div class="mt-3 p-2 bg-blue-50 border-l-4 border-blue-400 text-gray-700">
+💡 教學環境直接用預設值，按 <b>OK</b> 即可。
+</div>
+
+</div>
+
+</div>
+
+<!--
+雙擊之後看到的第一個畫面是 Configuration，選擇安裝模式。
+
+預設是 Per-user installation，也就是個別使用者模式，這是官方推薦的。它的好處是不需要管理員權限就能裝，後端用的是 WSL 2。對我們上課的情境來說，這個選項最方便。
+
+下面的 All-users installation 是全機器安裝，會要求輸入管理員密碼，如果你的電腦有多個使用者帳號都要用 Docker，才需要選它。
+
+Add shortcut to desktop 建議勾著，等一下要開 Docker Desktop 比較好找。
+
+⚠️ 易錯點：如果你選了 All-users installation 卻沒有管理員權限，安裝會直接失敗。不確定的話就維持預設。
+
+確認之後按 OK。
+-->
+
+---
+
+# ② 安裝精靈 — 安裝中 / 完成
+
+<div class="grid grid-cols-2 gap-6">
+
+<div>
+<img src="/docker-install-04-installing.png" style="width: 100%; border-radius: 6px; border: 1px solid #d0d7de;" />
+<p class="text-center mt-2 text-sm" style="color: #57606a;">Unpacking files… 解壓縮中，約 1–2 分鐘</p>
+</div>
+
+<div>
+<img src="/docker-install-05-succeeded.png" style="width: 100%; border-radius: 6px; border: 1px solid #d0d7de;" />
+<p class="text-center mt-2 text-sm" style="color: #57606a;">Installation succeeded → 按 <b>Close</b></p>
+</div>
+
+</div>
+
+<div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
+💡 <b>個別使用者模式不需要登出</b>；若選的是全使用者模式，這裡可能會要求你登出 Windows 再重新登入。
+</div>
+
+<!--
+按下 OK 之後就進入安裝過程。
+
+左邊這張是 Unpacking files，進度條會跑一到兩分鐘，這段時間它在解壓縮檔案並設定 WSL 2 的整合環境，耐心等它跑完，不要中途關掉。
+
+右邊這張出現 Installation succeeded 就代表安裝完成了，按 Close 關掉安裝精靈。
+
+這裡有一個跟舊版不一樣的地方要講：如果你選的是 Per-user installation，安裝完不需要登出 Windows，可以直接開來用。只有全使用者模式才可能要求登出再登入，看到那個提示記得先存好檔案。
+-->
+
+---
+
+# ③ 首次啟動 — 服務條款
+
+<div class="grid grid-cols-2 gap-6 items-center">
+
+<div>
+<img src="/docker-install-06-terms.png" style="width: 100%; border-radius: 6px; border: 1px solid #d0d7de;" />
+</div>
+
+<div class="text-sm" style="color:#57606a;">
+
+從**桌面捷徑**或開始功能表開啟 Docker Desktop，第一次啟動會跳出 **Docker Subscription Service Agreement**。
+
+按 **Accept** 才會繼續啟動。
+
+<div class="mt-3 p-2 bg-blue-50 border-l-4 border-blue-400 text-gray-700">
+⚠️ 這裡沒按 Accept，Docker Desktop 就不會啟動 — 很多人以為是「裝完打不開」，其實只是條款還沒同意。
+</div>
+
+<div class="mt-3 p-2" style="background:#fff8e6; border-left:4px solid #e3b341;">
+超過 250 人或年營收超過 1000 萬美元的企業商用需付費訂閱；個人學習與教學免費。
+</div>
+
+</div>
+
+</div>
+
+<!--
+安裝完成之後，從桌面捷徑或開始功能表打開 Docker Desktop。
+
+第一次啟動一定會跳出這個 Docker Subscription Service Agreement，也就是訂閱服務條款。要按右下角的 Accept 才會繼續。
+
+⚠️ 易錯點：這是最常見的「裝完打不開」原因。其實不是打不開，是條款還沒按同意，程式就停在這一步。
+
+順帶提一下授權：個人學習、教學、非商業開源專案都是免費的；只有員工超過 250 人或年營收超過 1000 萬美元的企業商用才需要付費訂閱，大家上課不用擔心。
+-->
+
+---
+
+# ③ 首次啟動 — 登入畫面可略過
+
+<div class="grid grid-cols-2 gap-6 items-center">
+
+<div>
+<img src="/docker-install-07-welcome.png" style="width: 100%; border-radius: 6px; border: 1px solid #d0d7de;" />
+</div>
+
+<div class="text-sm" style="color:#57606a;">
+
+接著會出現 **Welcome to Docker**，要求登入 Docker 帳號。
+
+**本課程不需要登入**，直接按右上角的 **Skip** 就好。
+
+什麼時候才需要 Docker 帳號？
+
+- 要 **push** 自己的 Image 到 Docker Hub（第 2 章會用到）
+- 要拉取私有 Registry 的 Image
+- 要提高匿名拉取的速率限制
+
+</div>
+
+</div>
+
+<!--
+同意條款之後會看到 Welcome to Docker 這個畫面，它會希望你登入 Docker 帳號。
+
+我們這門課的前半段完全不需要登入，直接按右上角的 Skip 跳過就好。
+
+那什麼時候才會需要 Docker 帳號呢？主要有三個情況：第一，第二章我們要把自己 build 出來的 Image push 到 Docker Hub，那時候一定要登入；第二，如果公司有私有的 Registry，要拉私有 Image 也要登入；第三，Docker Hub 對沒登入的匿名使用者有拉取次數限制，登入之後額度會比較寬鬆。
+
+現在先按 Skip，等第二章再回來註冊帳號。
+-->
+
+---
+
+# ③ Docker Desktop 主畫面
+
+<div class="flex flex-col items-center">
+
+<img src="/docker-install-08-dashboard.png" style="width: 78%; border-radius: 6px; border: 1px solid #d0d7de;" />
+
+</div>
+
+<div class="mt-3 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
+💡 <b>安裝成功的判斷依據：</b> 左下角顯示綠色的 <b>Engine running</b>，右下角顯示版本號（此處為 v4.86.0），工作列鯨魚圖示不再轉圈 — 代表 Daemon 已就緒，可以開終端機下 <code>docker</code> 指令了。
+</div>
+
+<!--
+按下 Skip 之後就進入 Docker Desktop 的主畫面了。
+
+左邊這一排是主要功能：Containers 看容器、Images 看映像檔、Volumes 看資料卷、Logs 看日誌，這幾個是我們後面每一章都會用到的。現在因為還沒跑任何東西，Containers 這頁是空的，寫著「Your running containers show up here」。
+
+最重要的是看左下角這一行：綠色的 Engine running。這代表 Docker 的 Daemon 已經跑起來了。右下角會顯示版本號，我這台是 v4.86.0。
+
+⚠️ 如果左下角顯示的是 Starting 或紅色的 Engine stopped，先等一下或重開 Docker Desktop，這時候下 docker 指令一定會失敗。
+
+看到 Engine running，就可以打開終端機來驗證了。
 -->
 
 ---
@@ -391,6 +630,7 @@ Mac 安裝最直覺的方式就是圖形介面：拖拉安裝，跟裝一般 Mac
 Docker Desktop 裝好、啟動之後，我們可以用官方提供的 `hello-world` 這個最小 Image 來驗證整個環境是否正常運作。
 
 ```bash
+docker --version
 docker run hello-world
 ```
 
@@ -406,6 +646,52 @@ docker run hello-world
 ⚠️ 易錯點：如果執行後出現連線錯誤，通常是 Docker Desktop 還沒完全啟動，或是 WSL 2 沒有正常運作，可以先確認工作列鯨魚圖示是否已經停止轉圈。
 
 預期結果：終端機會印出一段「Hello from Docker!」開頭的文字，說明這則訊息是從一個容器裡面印出來的，看到這段文字，就代表我們的 Docker 環境已經可以正常使用了。
+-->
+
+---
+
+# ④ 驗證安裝 — 實際執行畫面
+
+<div class="grid grid-cols-3 gap-4">
+
+<div class="col-span-2">
+<img src="/docker-install-09-hello-world.png" style="width: 100%; border-radius: 6px; border: 1px solid #d0d7de;" />
+</div>
+
+<div class="text-sm" style="color:#57606a;">
+
+**對照架構三角色**
+
+<div class="p-2 mb-2 rounded" style="background:#f6f8fa;">
+<b>Client</b><br/>你打的 <code>docker run</code>
+</div>
+
+<div class="p-2 mb-2 rounded" style="background:#f6f8fa;">
+<b>Registry</b><br/><code>Unable to find image … locally</code><br/><code>Pulling from library/hello-world</code>
+</div>
+
+<div class="p-2 mb-2 rounded" style="background:#f6f8fa;">
+<b>Daemon</b><br/>建立並執行 Container，印出<br/><code>Hello from Docker!</code>
+</div>
+
+</div>
+
+</div>
+
+<!--
+這張是實際跑出來的畫面，我們一行一行對照第二部分講的架構。
+
+最上面 Docker version 29.7.2，這是 Docker Engine 的版本，跟 Docker Desktop 的 4.86.0 是兩個不同的版本號，不要搞混。
+
+接下來 Unable to find image 'hello-world:latest' locally，這行是關鍵：Daemon 先在本機找，找不到。
+
+於是下一行 Pulling from library/hello-world，它去 Docker Hub 這個 Registry 把 Image 拉下來，看到 Pull complete、Download complete，代表拉取成功。
+
+拉完之後 Daemon 建立容器並執行，容器印出 Hello from Docker! 這段文字，然後自動結束。
+
+中間那段 To generate this message, Docker took the following steps 講的正是這四個步驟，官方直接把架構寫在輸出裡，是很好的複習材料。
+
+⚠️ 易錯點：如果出現 error during connect 或 cannot connect to the Docker daemon，代表 Docker Desktop 還沒完全啟動，回去看主畫面左下角是不是 Engine running。
 -->
 
 ---
@@ -498,12 +784,16 @@ layout: default
 # 本章總結 — Docker 簡介
 
 <table class="summary-table">
+<thead>
 <tr><th>重點</th><th>說明</th></tr>
+</thead>
+<tbody>
 <tr><td>容器化</td><td>解決「環境不一致」的痛點，Container 具備自含、隔離、獨立、可攜四大特性</td></tr>
 <tr><td>VM vs Container</td><td>VM 帶完整作業系統，隔離強但資源開銷大；Container 共用主機核心，輕量且啟動快</td></tr>
 <tr><td>Docker 架構</td><td>Client（下指令）、Daemon（實際執行）、Registry（存放 Image）三方組成</td></tr>
 <tr><td>docker run 流程</td><td>Daemon 先檢查本機 Image，沒有的話才向 Registry 下載</td></tr>
 <tr><td>安裝驗證</td><td>裝完 Docker Desktop 後，用 <code>docker run hello-world</code> 驗證環境</td></tr>
+</tbody>
 </table>
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">

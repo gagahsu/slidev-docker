@@ -82,8 +82,7 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# Part 1
-## Volume vs Bind Mount vs tmpfs
+# Volume vs Bind Mount vs tmpfs
 
 <!--
 我們先進入第一部分，先建立觀念，再談指令。
@@ -273,8 +272,7 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# Part 2
-## docker volume 指令
+# docker volume 指令
 
 <!--
 第二部分我們要正式進入 Volume 的管理指令，把剛剛學到的觀念，轉換成實際能操作的指令。
@@ -399,8 +397,7 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# Part 3
-## 資料備份與還原情境
+# 資料備份與還原情境
 
 <!--
 第三部分是這一章的重頭戲，我們要學怎麼把 Volume 裡的資料打包備份、還有怎麼把備份還原回去，這在維運工作裡是非常實用的技巧。
@@ -694,12 +691,16 @@ layout: default
 # 本章總結 — Volume 資料持久化
 
 <table class="summary-table">
+<thead>
 <tr><th>重點</th><th>說明</th></tr>
+</thead>
+<tbody>
 <tr><td>Volume</td><td>由 Docker 管理，適合資料庫等需持久化的資料，如租來的「外部倉庫」</td></tr>
 <tr><td>Bind Mount</td><td>直接掛載 host 既有路徑，適合開發時同步原始碼，如借用「自己家的書櫃」</td></tr>
 <tr><td>tmpfs</td><td>存在記憶體中，容器一停止就消失，適合暫存資料，如「便利貼」</td></tr>
 <tr><td>核心指令</td><td><code>docker volume create / ls / inspect / rm / prune</code></td></tr>
 <tr><td>備份／還原</td><td>用「臨時容器 + tar」完成，不需直接碰觸 host 底層路徑</td></tr>
+</tbody>
 </table>
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">

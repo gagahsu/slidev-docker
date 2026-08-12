@@ -57,11 +57,11 @@ layout: default
 
 <div class="text-left" style="font-size: 1.1rem;">
 
-1. Image 概念與 Layer 結構
-2. 常用指令：pull / push / images / rmi
-3. Docker Hub 與 Tag 命名規則
-4. 練習題
-5. 總結
+- Image 概念與 Layer 結構
+- 常用指令：pull / push / images / rmi
+- Docker Hub 與 Tag 命名規則
+- 練習題
+- 總結
 
 </div>
 
@@ -78,8 +78,7 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# 第一部分
-## Image 概念與 Layer 結構
+# Image 概念與 Layer 結構
 
 <!--
 我們先從最基礎的問題開始：Image 到底是什麼？為什麼它要分層？
@@ -170,8 +169,7 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# 第二部分
-## 常用指令：pull / push / images / rmi
+# 常用指令：pull / push / images / rmi
 
 <!--
 觀念建立好了，接下來我們就實際動手，把 Image 相關最常用的四個指令走過一遍：pull、push、images、rmi。
@@ -330,8 +328,7 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# 第三部分
-## Docker Hub 與 Tag 命名規則
+# Docker Hub 與 Tag 命名規則
 
 <!--
 第三部分我們來看 Docker Hub 這個平台本身，還有一個大家實務上一定會遇到的問題：Tag 到底該怎麼命名？
@@ -539,12 +536,16 @@ docker push registry-host:5000/myadmin/taskboard-api:2.0.0
 # 本章總結 — 映像檔管理
 
 <table class="summary-table">
+<thead>
 <tr><th>重點</th><th>說明</th></tr>
+</thead>
+<tbody>
 <tr><td>Image vs Container</td><td>Image 是標準化的封裝模板，Container 是拿它啟動後的執行實例</td></tr>
 <tr><td>Layer 架構</td><td>Layer 一旦建立就不可修改，相同 Layer 可在不同 Image 間共用</td></tr>
 <tr><td>核心指令</td><td><code>pull</code> 下載、<code>push</code> 上傳、<code>images</code> 查看清單、<code>rmi</code> 刪除</td></tr>
 <tr><td>Registry</td><td>Docker Hub 是預設的全球 Registry，也可架設私有 Registry 存放內部 Image</td></tr>
 <tr><td>Tag 命名</td><td>建議搭配語意化版本（例如 <code>1.4.2</code>），正式環境避免只依賴 <code>latest</code></td></tr>
+</tbody>
 </table>
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">

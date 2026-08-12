@@ -1,0 +1,24 @@
+<svg width="640" height="420" viewBox="0 0 640 420" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif">
+  <rect width="640" height="420" rx="8" fill="#ffffff" stroke="#d0d7de" stroke-width="1.5"/>
+  <rect width="640" height="40" rx="8" fill="#f3f3f3"/>
+  <rect y="32" width="640" height="8" fill="#f3f3f3"/>
+  <line x1="0" y1="40" x2="640" y2="40" stroke="#e2e2e2" stroke-width="1"/>
+  <image href="/docker-whale-icon.svg" x="14" y="11" width="18" height="18"/>
+  <text x="40" y="24" font-size="13" fill="#1a1a2e">Docker Desktop Installer</text>
+
+  <line x1="562" y1="20" x2="574" y2="20" stroke="#5b5b5b" stroke-width="1.2" stroke-linecap="round"/>
+  <rect x="594" y="14" width="12" height="12" fill="none" stroke="#5b5b5b" stroke-width="1.2"/>
+  <rect x="608" y="0" width="32" height="40" fill="#e81123"/>
+  <line x1="618" y1="14" x2="630" y2="26" stroke="#ffffff" stroke-width="1.4"/>
+  <line x1="630" y1="14" x2="618" y2="26" stroke="#ffffff" stroke-width="1.4"/>
+
+  <circle cx="320" cy="150" r="46" fill="#e6f7f2"/>
+  <path d="M298 150 l16 16 l30 -34" stroke="#28c840" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <text x="320" y="232" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a2e">Installation succeeded</text>
+  <text x="320" y="258" text-anchor="middle" font-size="13" fill="#57606a">你必須登出才能完成安裝</text>
+  <text x="320" y="278" text-anchor="middle" font-size="13" fill="#57606a">You must log out to complete the installation</text>
+
+  <rect x="480" y="360" width="120" height="36" rx="6" fill="#1d63ed"/>
+  <text x="540" y="383" text-anchor="middle" font-size="13" fill="#ffffff" font-weight="600">Close and log out</text>
+</svg>

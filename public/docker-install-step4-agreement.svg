@@ -1,0 +1,27 @@
+<svg width="640" height="420" viewBox="0 0 640 420" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif">
+  <rect width="640" height="420" rx="8" fill="#ffffff" stroke="#d0d7de" stroke-width="1.5"/>
+  <rect width="640" height="40" rx="8" fill="#f3f3f3"/>
+  <rect y="32" width="640" height="8" fill="#f3f3f3"/>
+  <line x1="0" y1="40" x2="640" y2="40" stroke="#e2e2e2" stroke-width="1"/>
+  <image href="/docker-whale-icon.svg" x="14" y="11" width="18" height="18"/>
+  <text x="40" y="24" font-size="13" fill="#1a1a2e">Docker Subscription Service Agreement</text>
+
+  <line x1="562" y1="20" x2="574" y2="20" stroke="#5b5b5b" stroke-width="1.2" stroke-linecap="round"/>
+  <rect x="594" y="14" width="12" height="12" fill="none" stroke="#5b5b5b" stroke-width="1.2"/>
+  <rect x="608" y="0" width="32" height="40" fill="#e81123"/>
+  <line x1="618" y1="14" x2="630" y2="26" stroke="#ffffff" stroke-width="1.4"/>
+  <line x1="630" y1="14" x2="618" y2="26" stroke="#ffffff" stroke-width="1.4"/>
+
+  <rect x="40" y="70" width="560" height="220" rx="6" fill="#f6f8fa" stroke="#e2e8f0"/>
+  <text x="60" y="100" font-size="13" fill="#3d4552">Docker Subscription Service Agreement</text>
+  <text x="60" y="126" font-size="11" fill="#8b949e">個人使用、教育及非商業開源專案可免費使用。</text>
+  <text x="60" y="146" font-size="11" fill="#8b949e">員工超過 250 人或年營收超過 1000 萬美元的</text>
+  <text x="60" y="166" font-size="11" fill="#8b949e">企業，須訂閱 Pro / Team / Business 方案。</text>
+  <text x="60" y="196" font-size="11" fill="#8b949e">詳細條款請參閱官方訂閱服務合約全文⋯</text>
+
+  <rect x="40" y="304" width="18" height="18" rx="3" fill="#ffffff" stroke="#8b949e" stroke-width="1.5"/>
+  <text x="68" y="318" font-size="13" fill="#1a1a2e">I accept the terms</text>
+
+  <rect x="480" y="360" width="120" height="36" rx="6" fill="#1d63ed"/>
+  <text x="540" y="383" text-anchor="middle" font-size="13" fill="#ffffff" font-weight="600">Accept</text>
+</svg>

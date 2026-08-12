@@ -47,15 +47,14 @@ layout: default
 
 # Outline
 
-- **第一部分**
-- **第二部分**
+- **主題一**
+- **主題二**
 
 ---
 layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# 第一部分
 # 標題
 
 ---

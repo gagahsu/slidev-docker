@@ -1,0 +1,45 @@
+<svg width="640" height="420" viewBox="0 0 640 420" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif">
+  <rect width="640" height="420" rx="8" fill="#ffffff" stroke="#d0d7de" stroke-width="1.5"/>
+  <rect width="640" height="40" rx="8" fill="#f3f3f3"/>
+  <rect y="32" width="640" height="8" fill="#f3f3f3"/>
+  <line x1="0" y1="40" x2="640" y2="40" stroke="#e2e2e2" stroke-width="1"/>
+  <image href="/docker-whale-icon.svg" x="14" y="11" width="18" height="18"/>
+  <text x="40" y="24" font-size="13" fill="#1a1a2e">Docker Desktop Installer</text>
+
+  <!-- minimize -->
+  <line x1="562" y1="20" x2="574" y2="20" stroke="#5b5b5b" stroke-width="1.2" stroke-linecap="round"/>
+  <!-- maximize -->
+  <rect x="594" y="14" width="12" height="12" fill="none" stroke="#5b5b5b" stroke-width="1.2"/>
+  <!-- close -->
+  <rect x="608" y="0" width="32" height="40" fill="#e81123"/>
+  <line x1="618" y1="14" x2="630" y2="26" stroke="#ffffff" stroke-width="1.4"/>
+  <line x1="630" y1="14" x2="618" y2="26" stroke="#ffffff" stroke-width="1.4"/>
+
+  <g transform="translate(40,70)">
+    <path d="M8 30 h44 a4 4 0 0 1 4 4 v4 h6 a4 4 0 0 1 4 4 v4 h6 a4 4 0 0 1 4 4 v4 h6 a4 4 0 0 1 4 4 v4 h6 a4 4 0 0 1 4 4 v4 h6 v6 a10 10 0 0 1 -10 10 H8 a10 10 0 0 1 -10 -10 v-46 a10 10 0 0 1 10 -10 z" fill="#1d63ed" transform="translate(10,0) scale(1)"/>
+  </g>
+  <text x="40" y="150" font-size="22" font-weight="700" fill="#1a1a2e">Configuration</text>
+  <text x="40" y="176" font-size="13" fill="#57606a">選擇安裝時要啟用的元件</text>
+
+  <g transform="translate(40,196)">
+    <rect x="0" y="0" width="18" height="18" rx="3" fill="#1d63ed"/>
+    <path d="M4 9 l4 4 l8 -8" stroke="#ffffff" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="28" y="14" font-size="14" fill="#1a1a2e">Use WSL 2 instead of Hyper-V (recommended)</text>
+  </g>
+
+  <g transform="translate(40,228)">
+    <rect x="0" y="0" width="18" height="18" rx="3" fill="#1d63ed"/>
+    <path d="M4 9 l4 4 l8 -8" stroke="#ffffff" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="28" y="14" font-size="14" fill="#1a1a2e">Add shortcut to desktop</text>
+  </g>
+
+  <rect x="0" y="270" width="560" height="1" fill="#e2e8f0" transform="translate(40,0)"/>
+
+  <text x="40" y="300" font-size="12" fill="#8b949e">個別使用者模式（免管理員權限）已預設勾選</text>
+
+  <rect x="420" y="360" width="90" height="36" rx="6" fill="#ffffff" stroke="#d0d7de"/>
+  <text x="465" y="383" text-anchor="middle" font-size="13" fill="#57606a">Cancel</text>
+
+  <rect x="520" y="360" width="80" height="36" rx="6" fill="#1d63ed"/>
+  <text x="560" y="383" text-anchor="middle" font-size="13" fill="#ffffff" font-weight="600">Ok</text>
+</svg>

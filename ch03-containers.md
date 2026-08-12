@@ -57,11 +57,11 @@ layout: default
 
 # Outline
 
-1. 容器基本操作：run / ps / stop / start / rm
-2. 前景與背景執行：-it 與 -d
-3. 容器生命週期與 logs 除錯
-4. 練習題
-5. 總結
+- 容器基本操作：run / ps / stop / start / rm
+- 前景與背景執行：-it 與 -d
+- 容器生命週期與 logs 除錯
+- 練習題
+- 總結
 
 <!--
 先看一下這章的地圖。
@@ -78,8 +78,7 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# Part 1
-## 容器基本操作
+# 容器基本操作
 
 <!--
 第一部分，我們從最基本的五個指令開始：run、ps、stop、start、rm。
@@ -271,8 +270,7 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# Part 2
-## 前景與背景執行
+# 前景與背景執行
 
 <!--
 第二部分，我們要搞懂容器執行時的兩種模式：前景（foreground）跟背景（detached）。
@@ -468,8 +466,7 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# Part 3
-## 容器生命週期
+# 容器生命週期
 
 <!--
 第三部分，我們把前面學到的指令串起來，看整個容器從「出生」到「消失」會經過哪些狀態。
@@ -779,12 +776,16 @@ layout: default
 # 本章總結 — 容器操作
 
 <table class="summary-table">
+<thead>
 <tr><th>重點</th><th>說明</th></tr>
+</thead>
+<tbody>
 <tr><td>docker run</td><td>從 Image 建立並啟動一個全新的 Container</td></tr>
 <tr><td>前景 / 背景</td><td>預設會佔用終端機，加 <code>-d</code> 轉為背景執行</td></tr>
 <tr><td>docker exec</td><td>進入「已存在」的容器執行額外指令，不影響主行程</td></tr>
 <tr><td>容器生命週期</td><td>created → running → paused → stopped → removed</td></tr>
 <tr><td>docker logs</td><td>印出 STDOUT/STDERR，是除錯的第一步</td></tr>
+</tbody>
 </table>
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
