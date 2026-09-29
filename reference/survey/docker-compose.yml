@@ -1,0 +1,56 @@
+services:
+  db:
+    image: mysql:8.4
+    container_name: survey-db
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpw
+      MYSQL_DATABASE: dynamic_survey
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: apppw
+    ports:
+      - "3307:3306"
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpw"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: ./survey-api
+    image: survey-api:1.0.0
+    container_name: survey-api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      TZ: Asia/Taipei                     # 問卷狀態用 LocalDate.now() 判斷，時區要對
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/dynamic_survey
+      SPRING_DATASOURCE_USERNAME: appuser
+      SPRING_DATASOURCE_PASSWORD: apppw
+    ports:
+      - "8081:8080"
+    volumes:
+      - api-logs:/app/logs
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  web:
+    build: ./survey-web
+    image: survey-web:1.0.0
+    container_name: survey-web
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+
+volumes:
+  db-data:
+  api-logs:

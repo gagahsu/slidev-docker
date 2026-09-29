@@ -60,7 +60,7 @@ layout: default
 - **為什麼需要容器化** — VM vs Container 的差異
 - **Docker 架構** — Client / Daemon / Registry 怎麼合作
 - **安裝與驗證** — 安裝 Docker Desktop、跑第一個 hello-world
-- **練習** — 用課程專案 TaskBoard 走一次 `docker run` 流程
+- **練習** — 用課程專案動態問卷系統走一次 `docker run` 流程
 
 <!--
 跟大家說明一下今天的路線圖。
@@ -76,18 +76,18 @@ layout: default
 layout: default
 ---
 
-# 課程貫穿專案：TaskBoard
+# 課程貫穿專案：動態問卷系統
 
-這八章的範例與練習，都圍繞同一個專案 **TaskBoard（任務看板）**，剛好用上大家已經學過的三項技術：
+這八章的範例與練習，都圍繞同一個專案 **動態問卷系統**（MySQL、Spring Boot、Angular 三門課一路做出來的那個），剛好用上大家已經學過的三項技術：
 
 | 元件 | 技術 | 專案資料夾 | 之後的 Image |
 | --- | --- | --- | --- |
-| 前端 | Angular（build 後用 nginx 服務） | `taskboard-web/` | `taskboard-web:1.0.0` |
-| 後端 | Spring Boot + Gradle（Java 21） | `taskboard-api/` | `taskboard-api:1.0.0` |
-| 資料庫 | MySQL 8.4 | `db/init.sql` | `mysql:8.4`（官方 Image） |
+| 前端 | Angular 21（build 後用 nginx 服務） | `survey-web/` | `survey-web:1.0.0` |
+| 後端 | Spring Boot 4.1 + Gradle（Java 21） | `survey-api/` | `survey-api:1.0.0` |
+| 資料庫 | MySQL 8.4（六張表 + 範例資料） | `db/init.sql` | `mysql:8.4`（官方 Image） |
 
 ```
-瀏覽器 → taskboard-web (nginx :80) → taskboard-api (:8080) → taskboard-db (:3306)
+瀏覽器 → survey-web (nginx :80) → survey-api (:8080) → survey-db (:3306)
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
@@ -99,7 +99,7 @@ layout: default
 
 大家之前已經學過 Spring Boot、Angular 跟 MySQL，這門課不會再教這三項技術本身，而是把它們當成素材：我們要學的是怎麼把一個真實的三層架構專案容器化。
 
-專案叫 TaskBoard，就是一個任務看板，功能很單純——建立任務、查詢任務、更新狀態。業務邏輯刻意做得簡單，因為我們的重點在 Docker，不在 CRUD。
+專案就是「動態問卷系統」：前台填寫問卷、後台管理問卷。這個系統大家在 MySQL 課設計了資料庫、在 Spring Boot 課做出了 API、在 Angular 課做出了前端，現在只差最後一步：把它們打包起來，用容器一個指令跑起來。功能已經完成了，這門課我們不會再改任何業務邏輯，因為重點在 Docker。
 
 架構就是最標準的三層：Angular 打包成靜態檔案由 nginx 服務，使用者的請求打到 Spring Boot API，API 再連到 MySQL。
 
@@ -233,12 +233,12 @@ class: flex flex-col justify-center items-center text-center
 
 # 指令怎麼流動：以 docker run 為例
 
-當我們打下 `docker run` 這個指令，背後其實是 Client、Daemon、Registry 三方合作的結果。這裡直接把 TaskBoard 的資料庫跑起來：
+當我們打下 `docker run` 這個指令，背後其實是 Client、Daemon、Registry 三方合作的結果。這裡直接把動態問卷系統的資料庫跑起來：
 
 ```bash
-docker run -d --name taskboard-db -p 3307:3306 \
+docker run -d --name survey-db -p 3307:3306 \
   -e MYSQL_ROOT_PASSWORD=rootpw \
-  -e MYSQL_DATABASE=taskboard \
+  -e MYSQL_DATABASE=dynamic_survey \
   mysql:8.4
 ```
 
@@ -253,9 +253,9 @@ docker run -d --name taskboard-db -p 3307:3306 \
 <!--
 這頁我們把「打指令之後發生了什麼事」完整走過一遍，這是理解 Docker 架構最直觀的方式。
 
-我們直接拿 TaskBoard 專案的資料庫來當例子。以前大家在自己電腦上裝 MySQL，要下載安裝檔、設定密碼、設定路徑，弄個十幾分鐘跑不掉；現在一行指令就有一台乾淨的 MySQL 8.4。
+我們直接拿動態問卷系統專案的資料庫來當例子。以前大家在自己電腦上裝 MySQL，要下載安裝檔、設定密碼、設定路徑，弄個十幾分鐘跑不掉；現在一行指令就有一台乾淨的 MySQL 8.4。
 
-帶大家看一下參數：`-d` 是背景執行，不然終端機會被 MySQL 的 log 佔滿；`--name taskboard-db` 幫容器取名字，之後所有指令都可以用這個名字操作它；`-p 3307:3306` 是 port 映射，冒號左邊是我們電腦的 port、右邊是容器裡面的 port；`-e` 則是帶環境變數進去，MySQL 官方 Image 就是靠 MYSQL_ROOT_PASSWORD 跟 MYSQL_DATABASE 這兩個變數來初始化的。
+帶大家看一下參數：`-d` 是背景執行，不然終端機會被 MySQL 的 log 佔滿；`--name survey-db` 幫容器取名字，之後所有指令都可以用這個名字操作它；`-p 3307:3306` 是 port 映射，冒號左邊是我們電腦的 port、右邊是容器裡面的 port；`-e` 則是帶環境變數進去，MySQL 官方 Image 就是靠 MYSQL_ROOT_PASSWORD 跟 MYSQL_DATABASE 這兩個變數來初始化的。
 
 ⚠️ 這裡特別解釋一下為什麼主機端用 3307 而不是 3306：很多同學電腦上本來就裝了 MySQL，佔用了 3306，如果這裡也用 3306 就會 port 衝突啟動失敗。用 3307 可以完全避開，容器內部仍然是標準的 3306。
 
@@ -263,7 +263,7 @@ docker run -d --name taskboard-db -p 3307:3306 \
 
 ⚠️ 易錯點：第一次執行會需要等待下載時間，mysql:8.4 大概幾百 MB，這是正常的，不是指令壞掉了。之後同一個 Image 再跑就直接用本機快取，一兩秒就起來。
 
-預期結果：指令跑完會印出一長串容器 ID，用 GUI 工具連 localhost:3307、帳號 root、密碼 rootpw，就能看到裡面已經有一個叫 taskboard 的空資料庫。
+預期結果：指令跑完會印出一長串容器 ID，用 GUI 工具連 localhost:3307、帳號 root、密碼 rootpw，就能看到裡面已經有一個叫 dynamic_survey 的空資料庫（第七章我們會讓它自動匯入六張表與範例資料）。
 -->
 
 ---
@@ -698,28 +698,28 @@ docker run hello-world
 layout: default
 ---
 
-# 練習 1：TaskBoard 該用 VM 還是 Container？
+# 練習 1：動態問卷系統該用 VM 還是 Container？
 ### 任務說明
 
-TaskBoard 團隊有三位開發者，每個人電腦上的環境都不太一樣：
+動態問卷系統團隊有三位開發者，每個人電腦上的環境都不太一樣：
 
-- A 的電腦裝了 **MySQL 5.7**（舊專案在用），TaskBoard 需要 **MySQL 8.4**
-- B 的 JDK 是 **17**，TaskBoard 的 Gradle 設定要求 **JDK 21**
-- C 的 Node 是 **18**，Angular 專案要 **Node 20** 才裝得起 dependency
+- A 的電腦裝了 **MySQL 5.7**（舊專案在用），動態問卷系統需要 **MySQL 8.4**
+- B 的 JDK 是 **17**，動態問卷系統的 Gradle 設定要求 **JDK 21**
+- C 的 Node 是 **18**，Angular 21 專案要 **Node 22**（20.19 以上）才裝得起 dependency
 
-請回答：要讓三個人都能跑起同一套 TaskBoard，用 Container 還是 VM 比較合適？理由是什麼？
+請回答：要讓三個人都能跑起同一套動態問卷系統，用 Container 還是 VM 比較合適？理由是什麼？
 
 ---
 layout: default
 ---
 
-# 練習 1：TaskBoard 該用 VM 還是 Container？
+# 練習 1：動態問卷系統該用 VM 還是 Container？
 ### 解題提示
 
 1. 先想清楚：三個人缺的是「不同作業系統」，還是「同一個 OS 上的不同版本執行環境」？
 2. 回顧「VM vs Container 核心差異」那張表格，特別留意「資源開銷」與「啟動速度」
 3. 如果用 VM：每個人要為 MySQL、API、前端各開一台裝著完整 OS 的虛擬機，一台幾 GB 記憶體，開機要幾分鐘
-4. 如果用 Container：`mysql:8.4`、`gradle:8.10-jdk21`、`node:20-alpine` 各自帶著自己需要的版本，共用主機核心，秒級啟動
+4. 如果用 Container：`mysql:8.4`、`gradle:8.14-jdk21`、`node:22-alpine` 各自帶著自己需要的版本，共用主機核心，秒級啟動
 5. 想想「隔離性」這個特性：A 電腦上原本的 MySQL 5.7 會不會被容器裡的 8.4 影響？
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
@@ -730,15 +730,15 @@ layout: default
 layout: default
 ---
 
-# 練習 2：走一遍 TaskBoard 資料庫的啟動流程
+# 練習 2：走一遍動態問卷系統資料庫的啟動流程
 ### 任務說明
 
 假設我們在一台剛裝好 Docker Desktop、從來沒下載過任何 Image 的電腦上，執行：
 
 ```bash
-docker run -d --name taskboard-db -p 3307:3306 \
+docker run -d --name survey-db -p 3307:3306 \
   -e MYSQL_ROOT_PASSWORD=rootpw \
-  -e MYSQL_DATABASE=taskboard \
+  -e MYSQL_DATABASE=dynamic_survey \
   mysql:8.4
 ```
 
@@ -750,7 +750,7 @@ docker run -d --name taskboard-db -p 3307:3306 \
 layout: default
 ---
 
-# 練習 2：走一遍 TaskBoard 資料庫的啟動流程
+# 練習 2：走一遍動態問卷系統資料庫的啟動流程
 ### 解題提示
 
 1. 回顧「指令怎麼流動：以 docker run 為例」那五個步驟
@@ -764,11 +764,11 @@ layout: default
 </div>
 
 <!--
-這兩題練習題的講稿：第一題重點在幫大家把 VM 和 Container 的差異從表格轉換成實際判斷能力，而且情境就是大家真的會遇到的——同一個團隊裡每個人環境版本都不一樣。第二題則是把 Docker 架構的運作流程用 TaskBoard 的資料庫再走一次，確保大家不只是背名詞，而是真的理解 Client、Daemon、Registry 怎麼合作。
+這兩題練習題的講稿：第一題重點在幫大家把 VM 和 Container 的差異從表格轉換成實際判斷能力，而且情境就是大家真的會遇到的——同一個團隊裡每個人環境版本都不一樣。第二題則是把 Docker 架構的運作流程用動態問卷系統的資料庫再走一次，確保大家不只是背名詞，而是真的理解 Client、Daemon、Registry 怎麼合作。
 
 第二題的第三小題是刻意設計的，port 衝突是新手最常撞到的錯誤之一，先在紙上想過一次，實際遇到才不會慌。
 
-⚠️ 提醒同學，練習的時候不用急著看提示，先自己想過一輪，卡住了再對照提示頁，這樣印象會比較深刻。另外第二題請真的動手執行，因為這個 taskboard-db 容器我們後面幾章都還會用到。
+⚠️ 提醒同學，練習的時候不用急著看提示，先自己想過一輪，卡住了再對照提示頁，這樣印象會比較深刻。另外第二題請真的動手執行，因為這個 survey-db 容器我們後面幾章都還會用到。
 -->
 
 ---

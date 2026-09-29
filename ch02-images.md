@@ -115,12 +115,12 @@ class: flex flex-col justify-center items-center text-center
 
 「Image 採用分層（Layer）架構，每一層代表一組檔案系統的變更——新增、刪除或修改某些檔案。」
 
-以 TaskBoard 的後端 `taskboard-api` 為例：
+以動態問卷系統的後端 `survey-api` 為例：
 
 - 最底層：作業系統基礎環境（Alpine Linux）
 - 中間層：JRE 21 執行環境（`eclipse-temurin:21-jre-alpine`）
 - 再上一層：Gradle 產出的相依函式庫
-- 最上層：複製我們自己打包出來的 `taskboard-api.jar`
+- 最上層：複製我們自己打包出來的 `survey-api.jar`
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
 💡 <b>重點：</b> Image「建立後不可修改」，只能在既有 Layer 上面疊加新的 Layer；相同的底層 Layer 可以被多個 Image 共用，不用重複下載。
@@ -135,7 +135,7 @@ class: flex flex-col justify-center items-center text-center
 
 ⚠️ 易錯點：很多同學會以為修改 Image 裡的檔案就是「改掉原本的 Layer」，但其實 Docker 是幫我們建立一個新的 Layer 疊上去，原本的 Layer 完全不會被動到。這也是為什麼 Image 是「不可變（immutable）」的。
 
-用 TaskBoard 來對照就很有感：我們每天改 Controller 改個十幾次，但底層的 Alpine 跟 JRE 21 從頭到尾沒變，所以每次重新建 Image，真正需要重做的只有最上面那層 jar，這就是為什麼容器化的專案 rebuild 可以那麼快。
+用動態問卷系統來對照就很有感：我們每天改 Controller 改個十幾次，但底層的 Alpine 跟 JRE 21 從頭到尾沒變，所以每次重新建 Image，真正需要重做的只有最上面那層 jar，這就是為什麼容器化的專案 rebuild 可以那麼快。
 
 預期結果：大家聽完能理解，為什麼下載新 Image 時，有時候會看到「有幾層很快就下載完」——那是因為本機已經有一樣的 Layer 了。
 -->
@@ -202,25 +202,25 @@ class: flex flex-col justify-center items-center text-center
 
 # docker pull — 範例
 
-先把 TaskBoard 之後會用到的基礎 Image 都抓下來：
+先把動態問卷系統之後會用到的基礎 Image 都抓下來：
 
 ```bash
 # 沒指定 tag，預設抓 latest（不建議用在專案上）
 docker pull mysql
 
-# 指定版本，TaskBoard 專案統一用這幾個
+# 指定版本，動態問卷系統專案統一用這幾個
 docker pull mysql:8.4                      # 資料庫
-docker pull eclipse-temurin:21-jre-alpine  # 跑 taskboard-api.jar
+docker pull eclipse-temurin:21-jre-alpine  # 跑 survey-api.jar
 docker pull nginx:1.27-alpine              # 服務 Angular 打包後的靜態檔
 
 # 從公司內部私有 registry 下載
-docker pull registry-host:5000/myadmin/taskboard-api:1.0.0
+docker pull registry-host:5000/myadmin/survey-api:1.0.0
 ```
 
 執行後 Docker 會逐層（layer）顯示下載進度，如果本機已經有相同的 Layer，會直接顯示 `Already exists`，不會重複下載。
 
 <!--
-這頁帶大家實際操作 pull 指令，順便把 TaskBoard 後面幾章要用的基礎 Image 先準備好。
+這頁帶大家實際操作 pull 指令，順便把動態問卷系統後面幾章要用的基礎 Image 先準備好。
 
 先看第一個範例，`docker pull mysql`，沒有指定 tag，Docker 預設會抓 `latest` 這個標籤。下面才是我們專案真正的做法：明確寫出 `mysql:8.4`。這在正式環境非常重要，因為 latest 會一直變動，哪天 MySQL 出了 9.0，我們的 latest 就悄悄升上去了，Spring Boot 的 driver 相容性可能直接出問題。
 
@@ -242,9 +242,9 @@ docker pull registry-host:5000/myadmin/taskboard-api:1.0.0
 docker images
 
 # REPOSITORY        TAG               IMAGE ID       SIZE
-# taskboard-api     1.0.0             8f3c1a92be04   198MB
-# taskboard-api     latest            8f3c1a92be04   198MB
-# taskboard-web     1.0.0             2d47e5b310cc   52MB
+# survey-api     1.0.0             8f3c1a92be04   198MB
+# survey-api     latest            8f3c1a92be04   198MB
+# survey-web     1.0.0             2d47e5b310cc   52MB
 # mysql             8.4               a19b7c4d5e6f   612MB
 # eclipse-temurin   21-jre-alpine     71e0d3f8a1b2   187MB
 
@@ -252,15 +252,15 @@ docker images
 docker rmi 2d47e5b310cc
 
 # 用 repository:tag 刪除
-docker rmi taskboard-web:1.0.0
+docker rmi survey-web:1.0.0
 ```
 
 <!--
 這頁把 images 跟 rmi 放在一起講，因為它們是一組「查看 → 清理」的操作。
 
-大家看這份清單，`taskboard-api` 的 `1.0.0` 跟 `latest` 兩列，IMAGE ID 都是 8f3c1a92be04，完全一樣——代表它們其實是同一份 Image，只是貼了兩張不同的標籤紙，就像同一道菜可以同時叫「今日特餐」跟「主廚推薦」，硬碟上只佔一份空間。
+大家看這份清單，`survey-api` 的 `1.0.0` 跟 `latest` 兩列，IMAGE ID 都是 8f3c1a92be04，完全一樣——代表它們其實是同一份 Image，只是貼了兩張不同的標籤紙，就像同一道菜可以同時叫「今日特餐」跟「主廚推薦」，硬碟上只佔一份空間。
 
-也順便看一下大小：`taskboard-web` 只有 52MB，因為 Angular 打包出來就是一堆靜態檔案加上精簡版 nginx；`taskboard-api` 198MB，多出來的是 JRE；`mysql` 最肥，600 多 MB。這個大小差異在第四章講 multi-stage build 的時候會更有感覺。
+也順便看一下大小：`survey-web` 只有 52MB，因為 Angular 打包出來就是一堆靜態檔案加上精簡版 nginx；`survey-api` 198MB，多出來的是 JRE；`mysql` 最肥，600 多 MB。這個大小差異在第四章講 multi-stage build 的時候會更有感覺。
 
 ⚠️ 易錯點：如果這個 Image 目前有 Container 正在使用（不管是執行中還是停止狀態），直接 `docker rmi` 會刪除失敗，要先把相關的 Container 刪掉，或加上 `-f` 強制刪除（但要小心使用）。
 
@@ -295,30 +295,30 @@ push 就是跟 pull 反過來，把我們本機做好的 Image 上傳到 Registr
 
 # docker push — 範例
 
-把本機建好的 `taskboard-api` 推到公司內部 Registry，完整流程如下：
+把本機建好的 `survey-api` 推到公司內部 Registry，完整流程如下：
 
 ```bash
 # Step 1：登入 registry
 docker login registry-host:5000
 
 # Step 2：幫本機 Image 打上目標位置的 tag
-docker image tag taskboard-api:1.0.0 registry-host:5000/myadmin/taskboard-api:1.0.0
+docker image tag survey-api:1.0.0 registry-host:5000/myadmin/survey-api:1.0.0
 
 # Step 3：推送上去
-docker push registry-host:5000/myadmin/taskboard-api:1.0.0
+docker push registry-host:5000/myadmin/survey-api:1.0.0
 
 # 一次推送這個 repository 的所有標籤版本
-docker push -a registry-host:5000/myadmin/taskboard-api
+docker push -a registry-host:5000/myadmin/survey-api
 ```
 
 <!--
 這頁走一次完整的 push 流程，這也是實際工作上最常用到的組合技：tag + push。
 
-大家可以看到，我們不會直接把本機叫 `taskboard-api:1.0.0` 的 Image push 出去，而是要先用 `docker image tag` 幫它「重新貼一張標籤」，把目標 Registry 的位置寫進去，Docker 才知道這個 Image 該送去哪裡。沒有前綴的話，Docker 預設就是往 Docker Hub 送。
+大家可以看到，我們不會直接把本機叫 `survey-api:1.0.0` 的 Image push 出去，而是要先用 `docker image tag` 幫它「重新貼一張標籤」，把目標 Registry 的位置寫進去，Docker 才知道這個 Image 該送去哪裡。沒有前綴的話，Docker 預設就是往 Docker Hub 送。
 
 實務上這幾行不會是人手動打的，而是寫在 CI 腳本裡：Gradle build 完 jar、docker build 出 Image、打上 commit 版本的 tag、push 上 registry，然後伺服器那端 pull 下來重啟。這整條線我們第八章會完整走一次。
 
-⚠️ 易錯點：`docker image tag` 不是「改名」，而是「新增一張標籤」，原本的 `taskboard-api:1.0.0` 還是會存在，本機會同時看到兩個名稱但指向同一個 Image ID。
+⚠️ 易錯點：`docker image tag` 不是「改名」，而是「新增一張標籤」，原本的 `survey-api:1.0.0` 還是會存在，本機會同時看到兩個名稱但指向同一個 Image ID。
 
 預期結果：push 成功後，到 Docker Hub 或自己架設的 Registry 網頁上，應該就能看到剛剛上傳的這個 repository 跟 tag。
 -->
@@ -371,11 +371,11 @@ Docker Hub 提供的核心功能：
 
 | 命名方式 | 範例 | 用途 |
 | --- | --- | --- |
-| 語意化版本 | `taskboard-api:1.4.2` | 明確標示版本號，正式環境首選 |
-| 主版本簡寫 | `taskboard-api:1.4`、`taskboard-api:1` | 允許在小版本內自動更新 |
-| latest | `taskboard-api:latest` | 預設標籤，不建議在正式環境依賴它 |
-| 環境標籤 | `taskboard-api:staging`、`taskboard-api:prod` | 依部署環境區分 |
-| Commit / 建置編號 | `taskboard-api:git-a1b2c3d` | 精確對應到某一次程式碼版本，方便追蹤 |
+| 語意化版本 | `survey-api:1.4.2` | 明確標示版本號，正式環境首選 |
+| 主版本簡寫 | `survey-api:1.4`、`survey-api:1` | 允許在小版本內自動更新 |
+| latest | `survey-api:latest` | 預設標籤，不建議在正式環境依賴它 |
+| 環境標籤 | `survey-api:staging`、`survey-api:prod` | 依部署環境區分 |
+| Commit / 建置編號 | `survey-api:git-a1b2c3d` | 精確對應到某一次程式碼版本，方便追蹤 |
 
 <!--
 這頁是整個 Tag 命名規則的重點，也是我們實際團隊合作時最容易吵架的地方，一定要花時間講清楚。
@@ -391,22 +391,22 @@ Docker Hub 提供的核心功能：
 
 # Tag 命名 — 實際範例
 
-TaskBoard 後端發布一個新版本的完整流程：
+動態問卷系統後端發布一個新版本的完整流程：
 
 ```bash
-# 在 taskboard-api/ 目錄下建置 Image（Dockerfile 第四章會寫）
-docker build -t taskboard-api:latest .
+# 在 survey-api/ 目錄下建置 Image（Dockerfile 第四章會寫）
+docker build -t survey-api:latest .
 
 # 同時貼上不同精細度的版本 tag
-docker image tag taskboard-api:latest taskboard-api:1.4.2
-docker image tag taskboard-api:latest taskboard-api:1.4
+docker image tag survey-api:latest survey-api:1.4.2
+docker image tag survey-api:latest survey-api:1.4
 
 # 推送到 Docker Hub（帳號為 myaccount）
-docker image tag taskboard-api:latest myaccount/taskboard-api:1.4.2
-docker push myaccount/taskboard-api:1.4.2
+docker image tag survey-api:latest myaccount/survey-api:1.4.2
+docker push myaccount/survey-api:1.4.2
 
-# 一次推送所有本機的 taskboard-api 標籤
-docker push -a myaccount/taskboard-api
+# 一次推送所有本機的 survey-api 標籤
+docker push -a myaccount/survey-api
 ```
 
 <!--
@@ -416,7 +416,7 @@ docker push -a myaccount/taskboard-api
 
 順帶一提，這個 `1.4.2` 從哪裡來？實務上通常就是 `build.gradle` 裡面 `version = '1.4.2'` 那一行，CI 腳本讀出來直接當 tag 用，程式碼版本跟 Image 版本就永遠對得起來。
 
-⚠️ 易錯點：推送到 Docker Hub 時，Image 名稱前面一定要帶帳號或組織名稱（例如 `myaccount/taskboard-api`），不然 Docker 會預設當作要推去 Docker 官方的命名空間，直接被拒絕。
+⚠️ 易錯點：推送到 Docker Hub 時，Image 名稱前面一定要帶帳號或組織名稱（例如 `myaccount/survey-api`），不然 Docker 會預設當作要推去 Docker 官方的命名空間，直接被拒絕。
 
 預期結果：推送完成後，到 Docker Hub 網站上該帳號的 Repository 頁面，應該能同時看到 `1.4.2` 和 `1.4` 兩個 tag。
 -->
@@ -425,21 +425,21 @@ docker push -a myaccount/taskboard-api
 layout: default
 ---
 
-# 練習 1：準備 TaskBoard 的基礎 Image
+# 練習 1：準備動態問卷系統的基礎 Image
 ### 任務說明
 
-我們要把 TaskBoard 後面幾章需要的基礎 Image 先準備好。請完成以下操作：
+我們要把動態問卷系統後面幾章需要的基礎 Image 先準備好。請完成以下操作：
 
-1. 從 Docker Hub 下載 `eclipse-temurin` 的 `21-jre-alpine` 版本（之後用來跑 `taskboard-api.jar`）
+1. 從 Docker Hub 下載 `eclipse-temurin` 的 `21-jre-alpine` 版本（之後用來跑 `survey-api.jar`）
 2. 用 `docker images` 確認本機已經有這個 Image，並記下它的 IMAGE ID 與大小
-3. 幫這個 Image 新增一個標籤，命名為 `taskboard-runtime:v1`
-4. 刪除原本的 `eclipse-temurin:21-jre-alpine` 標籤（保留 `taskboard-runtime:v1`）
-5. 再執行一次 `docker images`，確認 `taskboard-runtime:v1` 還在，而且 IMAGE ID 跟第 2 步記下的一樣
+3. 幫這個 Image 新增一個標籤，命名為 `survey-runtime:v1`
+4. 刪除原本的 `eclipse-temurin:21-jre-alpine` 標籤（保留 `survey-runtime:v1`）
+5. 再執行一次 `docker images`，確認 `survey-runtime:v1` 還在，而且 IMAGE ID 跟第 2 步記下的一樣
 
 <!--
 這一題是基本功練習，檢驗大家對 pull / images / tag / rmi 四個指令的熟練度，順便把第四章要用的 runtime Image 先抓下來。
 
-引導思考：大家覺得如果直接刪除 `eclipse-temurin:21-jre-alpine`，剛剛貼的 `taskboard-runtime:v1` 會不會也一起消失？想想看 Image ID 跟 tag 之間的關係。第 5 步就是要大家自己驗證這件事。
+引導思考：大家覺得如果直接刪除 `eclipse-temurin:21-jre-alpine`，剛剛貼的 `survey-runtime:v1` 會不會也一起消失？想想看 Image ID 跟 tag 之間的關係。第 5 步就是要大家自己驗證這件事。
 -->
 
 ---
@@ -452,9 +452,9 @@ layout: default
 ```bash
 docker pull eclipse-temurin:21-jre-alpine
 docker images                       # 記下 IMAGE ID，約 187MB
-docker image tag eclipse-temurin:21-jre-alpine taskboard-runtime:v1
+docker image tag eclipse-temurin:21-jre-alpine survey-runtime:v1
 docker rmi eclipse-temurin:21-jre-alpine
-docker images                       # taskboard-runtime:v1 還在，ID 不變
+docker images                       # survey-runtime:v1 還在，ID 不變
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
@@ -464,21 +464,21 @@ docker images                       # taskboard-runtime:v1 還在，ID 不變
 <!--
 公布解答，順便解釋第 4 步背後的原理。
 
-⚠️ 這題最容易錯的地方，是同學會擔心「刪掉 eclipse-temurin 會不會連 taskboard-runtime:v1 也一起不見」，答案是不會。反過來說，如果最後一個 tag 也被刪掉，那份 Image 才會真的從硬碟上消失。
+⚠️ 這題最容易錯的地方，是同學會擔心「刪掉 eclipse-temurin 會不會連 survey-runtime:v1 也一起不見」，答案是不會。反過來說，如果最後一個 tag 也被刪掉，那份 Image 才會真的從硬碟上消失。
 
-預期結果：最後一次 `docker images` 只會看到 `taskboard-runtime:v1`，看不到 `eclipse-temurin`，但兩者的 IMAGE ID 完全相同。
+預期結果：最後一次 `docker images` 只會看到 `survey-runtime:v1`，看不到 `eclipse-temurin`，但兩者的 IMAGE ID 完全相同。
 -->
 
 ---
 layout: default
 ---
 
-# 練習 2：發布 taskboard-api 到私有 Registry
+# 練習 2：發布 survey-api 到私有 Registry
 ### 任務說明
 
-TaskBoard 後端修完一批 bug，要發布 `2.0.0` 版到公司內部的私有 Registry（位址 `registry-host:5000`，命名空間 `myadmin`）：
+動態問卷系統後端修完一批 bug，要發布 `2.0.0` 版到公司內部的私有 Registry（位址 `registry-host:5000`，命名空間 `myadmin`）：
 
-1. 本機已經有一個建置好的 Image，叫做 `taskboard-api:latest`
+1. 本機已經有一個建置好的 Image，叫做 `survey-api:latest`
 2. 幫它同時貼上 `2.0.0` 與 `2.0` 兩種精細度的版本標籤，並加上正確的 Registry 位置前綴
 3. 登入該 Registry
 4. 把 `2.0.0` 這個版本推送上去
@@ -503,18 +503,18 @@ layout: default
 
 ```bash
 # 貼上兩種精細度的版本標籤，並加上 registry 前綴
-docker image tag taskboard-api:latest registry-host:5000/myadmin/taskboard-api:2.0.0
-docker image tag taskboard-api:latest registry-host:5000/myadmin/taskboard-api:2.0
+docker image tag survey-api:latest registry-host:5000/myadmin/survey-api:2.0.0
+docker image tag survey-api:latest registry-host:5000/myadmin/survey-api:2.0
 
 # 登入私有 registry
 docker login registry-host:5000
 
 # 推送指定版本
-docker push registry-host:5000/myadmin/taskboard-api:2.0.0
+docker push registry-host:5000/myadmin/survey-api:2.0.0
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>提示：</b> 想把 2.0.0 跟 2.0 一次推送完，可以改用 <code>docker push -a registry-host:5000/myadmin/taskboard-api</code>。第 5 小題：測試環境抓 <code>2.0</code>（自動吃到修補版），正式環境鎖 <code>2.0.0</code>（版本完全固定）。
+💡 <b>提示：</b> 想把 2.0.0 跟 2.0 一次推送完，可以改用 <code>docker push -a registry-host:5000/myadmin/survey-api</code>。第 5 小題：測試環境抓 <code>2.0</code>（自動吃到修補版），正式環境鎖 <code>2.0.0</code>（版本完全固定）。
 </div>
 
 <!--

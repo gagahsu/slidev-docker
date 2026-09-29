@@ -100,20 +100,20 @@ Dockerfile 是一份純文字檔案，裡面一行一行寫著「怎麼組出一
 
 「Dockerfile 是食譜的文字版：照著步驟做，就能在任何地方做出一模一樣的 image。」
 
-先看最陽春的版本：把 Gradle 已經打包好的 `taskboard-api.jar` 塞進 image 裡跑起來。
+先看最陽春的版本：把 Gradle 已經打包好的 `survey-api.jar` 塞進 image 裡跑起來。
 
 ```dockerfile
-# taskboard-api/Dockerfile（第一版，之後會再改良）
+# survey-api/Dockerfile（第一版，之後會再改良）
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-COPY build/libs/taskboard-api-1.0.0.jar app.jar
+COPY build/libs/survey-api.jar app.jar
 EXPOSE 8080
 CMD ["java", "-jar", "app.jar"]
 ```
 
 ```bash
 ./gradlew bootJar                       # 先在本機打包出 jar
-docker build -t taskboard-api:1.0.0 .   # 再包成 image
+docker build -t survey-api:1.0.0 .   # 再包成 image
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
@@ -148,7 +148,7 @@ docker build -t taskboard-api:1.0.0 .   # 再包成 image
 
 # Dockerfile 常用指令 — 範例
 
-把七個指令都用上，寫一份比較完整的 `taskboard-api` Dockerfile：
+把七個指令都用上，寫一份比較完整的 `survey-api` Dockerfile：
 
 ```dockerfile
 FROM eclipse-temurin:21-jre-alpine
@@ -156,7 +156,7 @@ ENV APP_HOME=/app
 ENV SPRING_PROFILES_ACTIVE=prod
 WORKDIR $APP_HOME
 RUN addgroup -S app && adduser -S app -G app
-COPY build/libs/taskboard-api-1.0.0.jar app.jar
+COPY build/libs/survey-api.jar app.jar
 USER app
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]
@@ -174,7 +174,7 @@ ENV APP_HOME=/app 設定環境變數，後面 WORKDIR 直接用 $APP_HOME。第�
 
 那個 RUN addgroup / adduser 加上 USER app 是資安上的好習慣：容器裡的行程預設是用 root 跑的，萬一應用程式被攻破，攻擊者在容器內就是 root。建一個沒有特權的使用者來跑 java，風險小很多。這在正式環境的 code review 幾乎一定會被要求。
 
-ENTRYPOINT 加 CMD 的組合，意思是「這個容器就是拿來跑這支 jar 的（ENTRYPOINT 固定），但啟動參數可以換（CMD 可覆蓋）」。所以 `docker run taskboard-api:1.0.0 --server.port=9090` 就會用 9090 起服務，Spring Boot 會自動吃這個命令列參數。
+ENTRYPOINT 加 CMD 的組合，意思是「這個容器就是拿來跑這支 jar 的（ENTRYPOINT 固定），但啟動參數可以換（CMD 可覆蓋）」。所以 `docker run survey-api:1.0.0 --server.port=9090` 就會用 9090 起服務，Spring Boot 會自動吃這個命令列參數。
 
 ⚠️ 版本注意：ENV 一律寫成 KEY=VALUE 的等號形式，舊式沒有等號的寫法官方已列為過時。
 -->
@@ -220,11 +220,11 @@ class: flex flex-col justify-center items-center text-center
 「docker build 會把 Dockerfile 逐行讀進去，每一行變成一個 layer（層），疊起來組成最終的 image。」
 
 ```bash
-# 在 taskboard-api/ 目錄下執行
-docker build -t taskboard-api:1.0.0 .
+# 在 survey-api/ 目錄下執行
+docker build -t survey-api:1.0.0 .
 
 # 指定不同檔名的 Dockerfile（單一 repo 放多個服務時常見）
-docker build -f Dockerfile.web -t taskboard-web:1.0.0 ./taskboard-web
+docker build -f Dockerfile.web -t survey-web:1.0.0 ./survey-web
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
@@ -234,7 +234,7 @@ docker build -f Dockerfile.web -t taskboard-web:1.0.0 ./taskboard-web
 <!--
 docker build 這個指令做的事情，就是把我們寫好的 Dockerfile 一行一行讀進去執行，每執行完一行產生一個 layer，這些 layer 疊起來就是最終的 image。
 
-指令裡的 -t taskboard-api:1.0.0 是幫 image 取名字加版本號，最後那個點代表「建構上下文」，也就是 Docker 會把當前目錄的檔案送給建構程序使用。⚠️ 這個點很重要：如果我們的 jar 在 build/libs/ 底下，而執行 build 的位置在專案外面，Dockerfile 裡的 COPY 就會找不到檔案，因為那個檔案根本沒被送進上下文。
+指令裡的 -t survey-api:1.0.0 是幫 image 取名字加版本號，最後那個點代表「建構上下文」，也就是 Docker 會把當前目錄的檔案送給建構程序使用。⚠️ 這個點很重要：如果我們的 jar 在 build/libs/ 底下，而執行 build 的位置在專案外面，Dockerfile 裡的 COPY 就會找不到檔案，因為那個檔案根本沒被送進上下文。
 
 ⚠️ 版本注意：現在的 Docker（23.0 以後）預設就是用 BuildKit 這個新引擎在跑 build，以前舊版要手動加環境變數 DOCKER_BUILDKIT=1 才會啟用，現在不用了，是預設行為。BuildKit 對快取的處理更聰明，也支援更多進階功能。
 -->
@@ -300,7 +300,7 @@ RUN ./gradlew bootJar --no-daemon
 | `--no-cache` | 建構時強制忽略所有快取，從頭重新跑一次 |
 
 ```bash
-docker build --no-cache -t taskboard-api:1.0.0 .
+docker build --no-cache -t survey-api:1.0.0 .
 ```
 
 <!--
@@ -308,7 +308,7 @@ docker build --no-cache -t taskboard-api:1.0.0 .
 
 為什麼呢？因為 Docker 是由上往下比對的，只要某一行的內容變了，那一行『以及它之後的所有行』都要重新跑，不管後面那些行本身有沒有變。
 
-TaskBoard 的兩個服務剛好是同一個模式：後端的 build.gradle 對應前端的 package.json，兩者都是「很少改的依賴清單」；後端的 src/main/java 對應前端的 src/app，兩者都是「天天改的原始碼」。順序都是先複製清單、裝依賴，再複製原始碼、編譯。
+動態問卷系統的兩個服務剛好是同一個模式：後端的 build.gradle 對應前端的 package.json，兩者都是「很少改的依賴清單」；後端的 src/main/java 對應前端的 src/app，兩者都是「天天改的原始碼」。順序都是先複製清單、裝依賴，再複製原始碼、編譯。
 
 至於什麼時候該用 --no-cache？最常見的情境是懷疑快取「髒了」——比方說明明改了設定卻沒生效，或者 CI 上要確保完全乾淨的建構。平常開發不要加，加了就完全沒有快取加速可言。
 
@@ -353,11 +353,11 @@ Multi-stage build 解決的就是這個問題。我們可以開多個階段，�
 
 ---
 
-# Multi-stage Build — taskboard-api
+# Multi-stage Build — survey-api
 
 ```dockerfile
 # ---- 第一階段：用 Gradle 編譯，本機不需要裝 JDK ----
-FROM gradle:8.10-jdk21 AS build
+FROM gradle:8.14-jdk21 AS build
 WORKDIR /src
 COPY gradlew settings.gradle build.gradle ./
 COPY gradle ./gradle
@@ -368,21 +368,22 @@ RUN ./gradlew bootJar --no-daemon
 # ---- 第二階段：只留 JRE 跟打包好的 jar ----
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-RUN addgroup -S app && adduser -S app -G app
-COPY --from=build /src/build/libs/*.jar app.jar
+# 建立非 root 使用者，並先建好 logs 目錄（之後掛 Volume 才有寫入權限）
+RUN addgroup -S app && adduser -S app -G app && mkdir logs && chown app:app logs
+COPY --from=build /src/build/libs/survey-api.jar app.jar
 USER app
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>成果：</b> 建構階段的 <code>gradle:8.10-jdk21</code> 約 800MB，但最終 image 只有 <b>約 200MB</b> — 完整 JDK、Gradle、原始碼、依賴快取全部留在第一階段，不會進到成品裡。
+💡 <b>成果：</b> 建構階段的 <code>gradle:8.14-jdk21</code> 約 800MB，但最終 image 只有 <b>約 200MB</b> — 完整 JDK、Gradle、原始碼、依賴快取全部留在第一階段，不會進到成品裡。
 </div>
 
 <!--
 這頁是整章的重頭戲，也是大家之後真的會複製貼上到專案裡用的 Dockerfile。
 
-先看第一階段。FROM gradle:8.10-jdk21 AS build，這個 image 裡面有完整 JDK 21 跟 Gradle，所以編譯這件事整個搬進容器裡做了。這解決了前面提到的問題：現在不管是誰的電腦、或是 CI 伺服器，只要有 Docker 就能 build，完全不需要在本機裝 JDK 21，也不會有「我電腦是 JDK 17 所以 build 失敗」這種事。
+先看第一階段。FROM gradle:8.14-jdk21 AS build，這個 image 裡面有完整 JDK 21 跟 Gradle，所以編譯這件事整個搬進容器裡做了。這解決了前面提到的問題：現在不管是誰的電腦、或是 CI 伺服器，只要有 Docker 就能 build，完全不需要在本機裝 JDK 21，也不會有「我電腦是 JDK 17 所以 build 失敗」這種事。
 
 中間那幾行就是我們剛剛講的快取排序：先 gradlew 跟 build.gradle，抓依賴，再 src，才 bootJar。
 
@@ -392,27 +393,28 @@ ENTRYPOINT ["java", "-jar", "app.jar"]
 
 這不只是省硬碟。image 越小，push 越快、pull 越快、部署越快，而且攻擊面越小——image 裡沒有編譯器跟原始碼，就算被攻進去能做的事也少。
 
-⚠️ 這裡的 COPY --from=build 用了 *.jar 萬用字元，前提是 build/libs 底下只有一支 jar。如果 Gradle 同時產出 plain jar，記得在 build.gradle 關掉 `jar { enabled = false }`，否則會複製到錯的那支，容器一跑就報 no main manifest attribute。
+⚠️ 這裡的 jar 檔名是寫死的 `survey-api.jar`，因為我們在 build.gradle 用 `tasks.named('bootJar') { archiveFileName = 'survey-api.jar' }` 固定了檔名。如果沒固定，檔名會帶版本號（例如 `dynamic-survey-0.0.1-SNAPSHOT.jar`），改一次版本 Dockerfile 就要跟著改；用萬用字元 `*.jar` 又可能在 Gradle 同時產出 plain jar 的時候複製到錯的那支，容器一跑就報 no main manifest attribute。另外 `mkdir logs && chown` 那行是為了非 root 的 `app` 使用者：Spring Boot 的日誌預設寫到 `logs/`，這個目錄如果不先建好，第七章掛 Volume 後會因為權限問題寫不進去。
 -->
 
 ---
 
-# Multi-stage Build — taskboard-web
+# Multi-stage Build — survey-web
 
 Angular 更適合 multi-stage：Node 只在建構時需要，跑起來根本用不到。
 
 ```dockerfile
 # ---- 第一階段：用 Node 編譯 Angular ----
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 WORKDIR /src
-COPY package.json package-lock.json ./
+# .npmrc 內含 legacy-peer-deps=true，缺了 npm ci 會因為 peer dependency 失敗
+COPY package.json package-lock.json .npmrc ./
 RUN npm ci
 COPY . .
-RUN npm run build          # 產出到 dist/taskboard-web/browser
+RUN npm run build          # 產出到 dist/survey-web/browser
 
 # ---- 第二階段：只留 nginx 跟靜態檔 ----
 FROM nginx:1.27-alpine
-COPY --from=build /src/dist/taskboard-web/browser /usr/share/nginx/html
+COPY --from=build /src/dist/survey-web/browser /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 ```
@@ -426,11 +428,11 @@ EXPOSE 80
 
 大家想想 Angular 專案的 node_modules 有多大，隨便都是幾百 MB 到 1GB。但這些東西是「編譯時」才需要的——Angular 編譯完就是一堆 HTML、CSS、JS 靜態檔案，瀏覽器下載它們就能跑，執行階段完全不需要 Node，更不需要 node_modules。
 
-所以第一階段用 node:20-alpine 跑 npm ci 跟 npm run build，第二階段直接換成 nginx，只把 dist 底下的產出物複製到 nginx 的預設網站根目錄。最終 image 五十幾 MB，裡面連 Node 都沒有。
+所以第一階段用 node:22-alpine 跑 npm ci 跟 npm run build，第二階段直接換成 nginx，只把 dist 底下的產出物複製到 nginx 的預設網站根目錄。最終 image 五十幾 MB，裡面連 Node 都沒有。
 
 注意 `npm ci` 不是 `npm install`。ci 會嚴格照著 package-lock.json 安裝，版本完全鎖定，而且會先清空 node_modules，這正是我們要的可重現建構；install 則可能會去更新 lock 檔，同一份程式碼在不同時間 build 出不同結果。容器建構一律用 ci。
 
-⚠️ 那個 dist 路徑要注意版本差異：Angular 17 之後預設輸出到 `dist/<專案名>/browser`，17 以前是 `dist/<專案名>`。路徑寫錯的話 build 會過，但容器跑起來打開網頁是 nginx 的預設歡迎頁或 404。第三章教的 `docker exec -w /usr/share/nginx/html taskboard-web ls` 就是拿來查這個的。
+⚠️ 那個 dist 路徑要注意版本差異：Angular 17 之後預設輸出到 `dist/<專案名>/browser`，17 以前是 `dist/<專案名>`。路徑寫錯的話 build 會過，但容器跑起來打開網頁是 nginx 的預設歡迎頁或 404。第三章教的 `docker exec -w /usr/share/nginx/html survey-web ls` 就是拿來查這個的。
 
 至於那個 nginx.conf，主要是設定 Angular 路由的 fallback（所有找不到的路徑都回 index.html），還有把 /api 轉發到後端——這個第六章會完整講。
 -->
@@ -450,7 +452,7 @@ EXPOSE 80
 | 效益 | 縮小建構上下文、避免機密檔案被打包、加快 build 速度 |
 
 ```plaintext
-# taskboard-api/.dockerignore        # taskboard-web/.dockerignore
+# survey-api/.dockerignore        # survey-web/.dockerignore
 .git                                 # .git
 .gradle/                             # node_modules/
 build/                               # dist/
@@ -461,7 +463,7 @@ src/main/resources/application-local.yml
 <!--
 .dockerignore 這個檔案的用法，跟大家熟悉的 .gitignore 幾乎一模一樣，寫法也是每行一個排除規則。
 
-它解決的問題是：docker build 執行時，會把當前目錄整個打包成「建構上下文」送給建構程序。TaskBoard 兩個專案都有很痛的例子——前端的 node_modules 動輒 1GB，後端的 .gradle 快取跟 build 目錄也是幾百 MB，這些全部都會被送進去，光是「送」就要等好幾十秒，而且送進去之後第一階段還會用 npm ci / gradlew 重做一次，完全是白費工。
+它解決的問題是：docker build 執行時，會把當前目錄整個打包成「建構上下文」送給建構程序。動態問卷系統兩個專案都有很痛的例子——前端的 node_modules 動輒 1GB，後端的 .gradle 快取跟 build 目錄也是幾百 MB，這些全部都會被送進去，光是「送」就要等好幾十秒，而且送進去之後第一階段還會用 npm ci / gradlew 重做一次，完全是白費工。
 
 資安面更要小心。後端專案裡常有 `application-local.yml` 放著本機資料庫密碼，前端常有 `.env` 放 API key，這些都絕對不能進 image——因為 image 是會被 push 到 registry 的，任何人 pull 下來都能翻出來看。
 
@@ -474,18 +476,18 @@ src/main/resources/application-local.yml
 layout: default
 ---
 
-# 練習 1：修好 taskboard-api 的 Dockerfile
+# 練習 1：修好 survey-api 的 Dockerfile
 ### 任務說明
 
 同事寫的這份 Dockerfile 可以動，但每次改一行 Java 就要重抓一次所有 Spring Boot 依賴，build 一次要一分半：
 
 ```dockerfile
-FROM gradle:8.10-jdk21
+FROM gradle:8.14-jdk21
 WORKDIR /src
 COPY . .
 RUN ./gradlew bootJar --no-daemon
 EXPOSE 8080
-CMD ["java", "-jar", "build/libs/taskboard-api-1.0.0.jar"]
+CMD ["java", "-jar", "build/libs/survey-api.jar"]
 ```
 
 任務：
@@ -521,24 +523,24 @@ RUN ./gradlew bootJar --no-daemon
 layout: default
 ---
 
-# 練習 2：把 taskboard-web 改成 Multi-stage
+# 練習 2：把 survey-web 改成 Multi-stage
 ### 任務說明
 
 前端目前這份 Dockerfile 建出來的 image 有 **1.2GB**，而且裡面看得到完整原始碼與 `.env`：
 
 ```dockerfile
-FROM node:20-alpine
+FROM node:22-alpine
 WORKDIR /app
 COPY . .
 RUN npm install
 RUN npm run build
 EXPOSE 4200
-CMD ["npx", "http-server", "dist/taskboard-web/browser"]
+CMD ["npx", "http-server", "dist/survey-web/browser"]
 ```
 
 任務：
 
-1. 改寫成 multi-stage：第一階段用 Node 編譯，第二階段換成 `nginx:1.27-alpine`，只複製 `dist/taskboard-web/browser` 的產出物
+1. 改寫成 multi-stage：第一階段用 Node 編譯，第二階段換成 `nginx:1.27-alpine`，只複製 `dist/survey-web/browser` 的產出物
 2. 把 `npm install` 換成 `npm ci`，並調整順序讓依賴安裝能吃快取
 3. 新增 `.dockerignore`，確保 `node_modules`、`dist`、`.env` 不會被送進建構上下文
 4. 驗證：`docker images` 比較改寫前後的大小，並進容器確認裡面沒有 `.ts` 原始碼與 `.env`
@@ -551,15 +553,15 @@ layout: default
 ### 提示說明
 
 ```dockerfile
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 WORKDIR /src
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 RUN npm ci
 COPY . .
 RUN npm run build
 
 FROM nginx:1.27-alpine
-COPY --from=build /src/dist/taskboard-web/browser /usr/share/nginx/html
+COPY --from=build /src/dist/survey-web/browser /usr/share/nginx/html
 EXPOSE 80
 ```
 
@@ -572,7 +574,7 @@ dist
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-⚠️ <b>驗證方式：</b> <code>docker run --rm -it taskboard-web:1.0.0 sh</code> 進容器，
+⚠️ <b>驗證方式：</b> <code>docker run --rm -it survey-web:1.0.0 sh</code> 進容器，
 <code>ls /usr/share/nginx/html</code> 應該只有 <code>index.html</code> 跟一堆雜湊檔名的 js/css，找不到任何 <code>.ts</code>。
 </div>
 

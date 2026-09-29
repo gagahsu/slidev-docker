@@ -98,12 +98,12 @@ layout: default
 
 「容器預設是無狀態（stateless）的，容器內的檔案系統會隨著容器一起被刪除。」
 
-- `docker rm taskboard-db` 刪掉容器，裡面 `task` 表的所有任務資料也一起消失
+- `docker rm survey-db` 刪掉容器，裡面所有的問卷資料也一起消失（包括我們手動建的 `demo_surveys` 表）
 - 開發測試環境影響不大，正式環境的重要資料一旦跟容器綁在一起就是災難
 - Docker 提供三種方式讓資料「活得比容器久」：Volume、Bind Mount、tmpfs
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-⚠️ <b>還記得第三章練習 2 的伏筆嗎？</b> 我們在 <code>taskboard-db</code> 裡手動建了 task 表、塞了一筆資料。這一章就是要回答那個問題：容器刪掉重建之後，那筆資料還在嗎？
+⚠️ <b>還記得第三章練習 2 的伏筆嗎？</b> 我們在 <code>survey-db</code> 裡手動建了 demo_surveys 表、塞了一筆資料。這一章就是要回答那個問題：容器刪掉重建之後，那筆資料還在嗎？
 </div>
 
 <!--
@@ -127,10 +127,10 @@ layout: default
 容器刪除後，Volume 資料依然保留，可掛載給新容器繼續使用。
 
 ```bash
-docker volume create taskboard-db-data
-docker run -d --name taskboard-db \
-  -v taskboard-db-data:/var/lib/mysql \
-  -e MYSQL_ROOT_PASSWORD=rootpw -e MYSQL_DATABASE=taskboard mysql:8.4
+docker volume create survey-db-data
+docker run -d --name survey-db \
+  -v survey-db-data:/var/lib/mysql \
+  -e MYSQL_ROOT_PASSWORD=rootpw -e MYSQL_DATABASE=dynamic_survey mysql:8.4
 ```
 
 Volume 的資料由 Docker 全權管理，我們不需要知道它實際存在 host 的哪個路徑，只需要透過 `docker volume` 指令來操作。
@@ -140,7 +140,7 @@ Volume 是 Docker 官方最推薦的持久化方式，資料庫幾乎一定用�
 
 用「外部倉庫」來比喻：容器是一間隨時可能被拆掉重建的房子，Volume 就是我們額外租的倉庫，房子拆了倉庫還在，重新蓋一間新房子，照樣可以把倉庫接回去用。
 
-這段範例建立一個叫 taskboard-db-data 的 Volume，掛到容器的 /var/lib/mysql——這是 MySQL 存放所有資料檔案的目錄，記住這個路徑，這就是 MySQL 容器唯一需要持久化的地方。之後就算容器被 rm 掉，Volume 裡的資料完好無缺，重新 run 一個新容器掛上同一個 Volume，所有任務資料原封不動回來。
+這段範例建立一個叫 survey-db-data 的 Volume，掛到容器的 /var/lib/mysql——這是 MySQL 存放所有資料檔案的目錄，記住這個路徑，這就是 MySQL 容器唯一需要持久化的地方。之後就算容器被 rm 掉，Volume 裡的資料完好無缺，重新 run 一個新容器掛上同一個 Volume，所有資料原封不動回來。
 
 ⚠️ 順帶一提，掛了 Volume 之後 MYSQL_DATABASE 這類初始化環境變數就只在「第一次」生效。因為 MySQL 官方 Image 的初始化腳本會先檢查資料目錄是不是空的，不是空的就直接啟動，不會重跑初始化。所以之後改 MYSQL_PASSWORD 是不會生效的，很多同學會在這裡卡很久。
 
@@ -159,14 +159,14 @@ layout: default
 
 ```bash
 # 把本機的 SQL 初始化腳本掛進 MySQL 的 init 目錄（唯讀）
-docker run -d --name taskboard-db \
+docker run -d --name survey-db \
   --mount type=bind,source="$(pwd)"/db/init.sql,target=/docker-entrypoint-initdb.d/init.sql,readonly \
-  -e MYSQL_ROOT_PASSWORD=rootpw -e MYSQL_DATABASE=taskboard mysql:8.4
+  -e MYSQL_ROOT_PASSWORD=rootpw -e MYSQL_DATABASE=dynamic_survey mysql:8.4
 
 # 把 Spring Boot 的 log 目錄掛出來，用本機編輯器直接看
-docker run -d --name taskboard-api \
+docker run -d --name survey-api \
   --mount type=bind,source="$(pwd)"/logs,target=/app/logs \
-  taskboard-api:1.0.0
+  survey-api:1.0.0
 ```
 
 常見情境：掛設定檔、掛初始化腳本、把容器內的 log 撈到本機看。
@@ -196,9 +196,9 @@ layout: default
 寫入速度快，容器一停止內容就消失，無法保留。
 
 ```bash
-docker run -d --name taskboard-api \
+docker run -d --name survey-api \
   --mount type=tmpfs,destination=/tmp \
-  taskboard-api:1.0.0
+  survey-api:1.0.0
 ```
 
 - 適合暫存資料：session 快取、暫存運算結果
@@ -227,7 +227,7 @@ layout: default
 | 管理方式 | `docker volume` 指令管理 | 依賴 host 檔案系統 | 隨容器生命週期 |
 | 資料持久性 | 容器刪除後仍保留 | 容器刪除後仍保留（在 host 上）| 容器停止即消失 |
 | 適合情境 | 資料庫、需要備份遷移的資料 | 開發環境掛載原始碼、設定檔 | 暫存快取、機敏暫存資料 |
-| TaskBoard 的用法 | `taskboard-db-data` → `/var/lib/mysql` | `db/init.sql`、API 的 `logs/` | API 的 `/tmp` |
+| 動態問卷系統的用法 | `survey-db-data` → `/var/lib/mysql` | `db/init.sql`、API 的 `logs/` | API 的 `/tmp` |
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
 💡 <b>選擇原則：</b> 需要 Docker 幫忙管理、備份、遷移，選 Volume；需要直接存取 host 上的既有檔案（設定檔、SQL 腳本），選 Bind Mount；只是暫存、不在乎重開就消失，選 tmpfs。
@@ -251,10 +251,10 @@ Docker 官方文件建議「優先使用 `--mount`」，因為它語意明確、
 
 ```bash
 # --mount 長語法（推薦）
-docker run --mount type=volume,src=taskboard-db-data,dst=/var/lib/mysql mysql:8.4
+docker run --mount type=volume,src=survey-db-data,dst=/var/lib/mysql mysql:8.4
 
 # -v 短語法（常見但語意較不明確）
-docker run -v taskboard-db-data:/var/lib/mysql mysql:8.4
+docker run -v survey-db-data:/var/lib/mysql mysql:8.4
 ```
 
 ⚠️ Docker 版本注意：在 Compose 檔案中，官方建議 Volume／Bind Mount 都用 `type: bind` / `type: volume` 的長語法明確標示類型，短語法 `./data:/data` 目前仍支援、也很常出現在範例中，並不算錯誤，但團隊協作時長語法可讀性更好。
@@ -307,29 +307,29 @@ layout: default
 # docker volume 常用指令 — 範例
 
 ```bash
-$ docker volume create taskboard-db-data
-taskboard-db-data
+$ docker volume create survey-db-data
+survey-db-data
 
 $ docker volume ls
 DRIVER    VOLUME NAME
-local     taskboard-db-data
-local     taskboard_db-data          # Compose 建的會自動加專案名稱前綴
+local     survey-db-data
+local     survey_db-data          # Compose 建的會自動加專案名稱前綴
 
-$ docker volume inspect taskboard-db-data
+$ docker volume inspect survey-db-data
 [
     {
         "Driver": "local",
-        "Mountpoint": "/var/lib/docker/volumes/taskboard-db-data/_data",
-        "Name": "taskboard-db-data",
+        "Mountpoint": "/var/lib/docker/volumes/survey-db-data/_data",
+        "Name": "survey-db-data",
         "Scope": "local"
     }
 ]
 ```
 
 <!--
-我們一步步操作一次：先 create 建立 taskboard-db-data，接著用 ls 確認它存在。
+我們一步步操作一次：先 create 建立 survey-db-data，接著用 ls 確認它存在。
 
-大家注意 ls 輸出的第二列，那是第五章用 Compose 起的時候自動建的 Volume。Compose 會幫 Volume 加上「專案名稱_」的前綴，專案名稱預設就是資料夾名稱。這解釋了一個很多人困惑的現象：明明 compose.yaml 裡寫 db-data，docker volume ls 卻看到 taskboard_db-data。也因為這個前綴，不同專案的同名 Volume 不會互相打架。
+大家注意 ls 輸出的第二列，那是第五章用 Compose 起的時候自動建的 Volume。Compose 會幫 Volume 加上「專案名稱_」的前綴，專案名稱預設就是資料夾名稱。這解釋了一個很多人困惑的現象：明明 compose.yaml 裡寫 db-data，docker volume ls 卻看到 survey_db-data。也因為這個前綴，不同專案的同名 Volume 不會互相打架。
 
 重點在 inspect 這個指令，它會告訴我們這個 Volume 在 host 上實際的路徑，也就是 Mountpoint 這個欄位。平常我們不太需要直接去操作這個路徑，但 debug 的時候會很有用。
 
@@ -343,19 +343,19 @@ layout: default
 # 掛載 Volume 到容器
 
 ```bash
-docker run -d --name taskboard-db \
-  --mount source=taskboard-db-data,target=/var/lib/mysql \
-  -e MYSQL_ROOT_PASSWORD=rootpw -e MYSQL_DATABASE=taskboard mysql:8.4
+docker run -d --name survey-db \
+  --mount source=survey-db-data,target=/var/lib/mysql \
+  -e MYSQL_ROOT_PASSWORD=rootpw -e MYSQL_DATABASE=dynamic_survey mysql:8.4
 
-docker run -d --name taskboard-db \
-  -v taskboard-db-data:/var/lib/mysql \
-  -e MYSQL_ROOT_PASSWORD=rootpw -e MYSQL_DATABASE=taskboard mysql:8.4
+docker run -d --name survey-db \
+  -v survey-db-data:/var/lib/mysql \
+  -e MYSQL_ROOT_PASSWORD=rootpw -e MYSQL_DATABASE=dynamic_survey mysql:8.4
 ```
 
-兩個指令效果完全一樣，只是語法不同。掛載之後，MySQL 寫進 `/var/lib/mysql` 的所有資料檔，都實際落在 `taskboard-db-data` 這個 Volume 裡。
+兩個指令效果完全一樣，只是語法不同。掛載之後，MySQL 寫進 `/var/lib/mysql` 的所有資料檔，都實際落在 `survey-db-data` 這個 Volume 裡。
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>注意：</b> 若掛載的是「空」Volume，image 裡該路徑原本的檔案會自動複製進去（MySQL 會在此時跑初始化建立 <code>taskboard</code> 資料庫）；若 Volume 裡已經有資料，直接沿用既有資料，<b>初始化腳本與 <code>MYSQL_*</code> 環境變數都不會再執行</b>。
+💡 <b>注意：</b> 若掛載的是「空」Volume，image 裡該路徑原本的檔案會自動複製進去（MySQL 會在此時跑初始化建立 <code>dynamic_survey</code> 資料庫）；若 Volume 裡已經有資料，直接沿用既有資料，<b>初始化腳本與 <code>MYSQL_*</code> 環境變數都不會再執行</b>。
 </div>
 
 <!--
@@ -363,7 +363,7 @@ docker run -d --name taskboard-db \
 
 ⚠️ 下面那個提示框是這一章最多人踩的坑，我要花點時間講。
 
-第一次啟動時 Volume 是空的，MySQL 的 entrypoint 腳本發現資料目錄空空如也，就會跑初始化：建 taskboard 資料庫、建 appuser 帳號、執行 /docker-entrypoint-initdb.d 底下的 SQL。
+第一次啟動時 Volume 是空的，MySQL 的 entrypoint 腳本發現資料目錄空空如也，就會跑初始化：建 dynamic_survey 資料庫、建 appuser 帳號、執行 /docker-entrypoint-initdb.d 底下的 SQL。
 
 但第二次之後，Volume 裡已經有資料了，腳本一看「資料目錄有東西」就直接啟動 MySQL，完全跳過初始化。所以如果你後來改了 MYSQL_PASSWORD、或是改了 init.sql 想加一張表，重啟容器你會發現完全沒生效，然後開始懷疑人生。
 
@@ -454,22 +454,22 @@ layout: default
 # 備份 Volume — 範例
 
 ```bash
-# 做法 A：借用執行中的 taskboard-db 容器，把它的 Volume 打包
-docker run --rm --volumes-from taskboard-db -v $(pwd):/backup \
+# 做法 A：借用執行中的 survey-db 容器，把它的 Volume 打包
+docker run --rm --volumes-from survey-db -v $(pwd):/backup \
   alpine tar cvf /backup/db-backup.tar /var/lib/mysql
 
 # 做法 B（資料庫建議）：用 mysqldump 匯出邏輯備份
-docker exec taskboard-db mysqldump -uroot -prootpw taskboard > taskboard.sql
+docker exec survey-db mysqldump -uroot -prootpw dynamic_survey > survey.sql
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-⚠️ <b>做法 A 的前提：</b> 直接打包 MySQL 資料檔屬於「實體備份」，容器<b>執行中</b>打包可能抓到寫到一半的檔案。正式作業要先 <code>docker stop taskboard-db</code> 再打包，或改用做法 B。
+⚠️ <b>做法 A 的前提：</b> 直接打包 MySQL 資料檔屬於「實體備份」，容器<b>執行中</b>打包可能抓到寫到一半的檔案。正式作業要先 <code>docker stop survey-db</code> 再打包，或改用做法 B。
 </div>
 
 <!--
 這頁講備份，我給了兩個做法，實務上要分清楚什麼時候用哪個。
 
-做法 A 是 Docker 通用的 Volume 備份技巧：啟動一個臨時的 alpine 容器，用 --volumes-from 借用 taskboard-db 已經掛好的 Volume，同時把 host 目前目錄掛到 /backup，然後在容器內跑 tar 打包。打包出來的檔案透過掛載直接落在我們的電腦上。加了 --rm，臨時容器用完自動消失。
+做法 A 是 Docker 通用的 Volume 備份技巧：啟動一個臨時的 alpine 容器，用 --volumes-from 借用 survey-db 已經掛好的 Volume，同時把 host 目前目錄掛到 /backup，然後在容器內跑 tar 打包。打包出來的檔案透過掛載直接落在我們的電腦上。加了 --rm，臨時容器用完自動消失。
 
 這招的價值在於「通用」——不管 Volume 裡裝的是 MySQL、上傳的檔案還是什麼，都能這樣備份。
 
@@ -486,16 +486,16 @@ layout: default
 
 ```bash
 # 對應做法 A：把 tar 解壓回一個全新的 Volume
-docker run --rm -v taskboard-db-restore:/var/lib/mysql -v $(pwd):/backup \
+docker run --rm -v survey-db-restore:/var/lib/mysql -v $(pwd):/backup \
   alpine sh -c "cd /var/lib/mysql && tar xvf /backup/db-backup.tar --strip 3"
 
 # 用還原出來的 Volume 啟動新容器驗證
-docker run -d --name taskboard-db-check \
-  -v taskboard-db-restore:/var/lib/mysql \
+docker run -d --name survey-db-check \
+  -v survey-db-restore:/var/lib/mysql \
   -e MYSQL_ROOT_PASSWORD=rootpw mysql:8.4
 
 # 對應做法 B：把 SQL 灌回資料庫
-docker exec -i taskboard-db mysql -uroot -prootpw taskboard < taskboard.sql
+docker exec -i survey-db mysql -uroot -prootpw dynamic_survey < survey.sql
 ```
 
 <!--
@@ -525,10 +525,10 @@ services:
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro   # Bind：初始化腳本
     environment:
       MYSQL_ROOT_PASSWORD: rootpw
-      MYSQL_DATABASE: taskboard
+      MYSQL_DATABASE: dynamic_survey
 
   api:
-    build: ./taskboard-api
+    build: ./survey-api
     volumes:
       - ./logs:/app/logs                            # Bind：log 撈到本機看
     tmpfs:
@@ -541,7 +541,7 @@ volumes:
 三種掛載方式在同一份檔案裡各司其職。別忘了在最底下的 `volumes:` 區塊宣告具名 Volume。
 
 <!--
-這頁把三種掛載方式在 TaskBoard 的實際位置一次呈現，大家可以當成範本直接抄。
+這頁把三種掛載方式在動態問卷系統的實際位置一次呈現，大家可以當成範本直接抄。
 
 db 有兩個掛載：Volume 掛資料目錄負責持久化，Bind Mount 掛 init.sql 負責第一次的建表，而且加了 :ro 唯讀，容器不可能改到我們專案裡的檔案。
 
@@ -562,17 +562,17 @@ api 的 ./logs 是把容器裡的 log 目錄接到本機，這樣用本機編輯
 layout: default
 ---
 
-# 練習 1：讓 TaskBoard 的資料活下來
+# 練習 1：讓動態問卷系統的資料活下來
 ### 任務說明
 
 正面回答第三章留下的問題。請完成：
 
-1. 建立名為 `taskboard-db-data` 的 Volume
-2. 啟動 `taskboard-db`（`mysql:8.4`），把 Volume 掛到 `/var/lib/mysql`
-3. 進容器建一張 `task` 表並塞兩筆任務資料
+1. 建立名為 `survey-db-data` 的 Volume
+2. 啟動 `survey-db`（`mysql:8.4`），把 Volume 掛到 `/var/lib/mysql`
+3. 進容器建一張 `demo_surveys` 表並塞兩筆問卷資料
 4. `docker volume inspect` 看這個 Volume 在 host 上的實際路徑
 5. **強制刪除容器**，再用 `docker volume ls` 確認 Volume 還在
-6. 用**同一個 Volume** 啟動一個全新的容器，進去 `select * from task;` — 資料還在嗎？
+6. 用**同一個 Volume** 啟動一個全新的容器，進去 `select * from demo_surveys;` — 資料還在嗎？
 
 <!--
 第一題是暖身，但它要親手推翻大家第三章的認知。
@@ -591,23 +591,23 @@ layout: default
 # 練習 1：解題提示
 
 ```bash
-docker volume create taskboard-db-data
-docker run -d --name taskboard-db -v taskboard-db-data:/var/lib/mysql \
-  -e MYSQL_ROOT_PASSWORD=rootpw -e MYSQL_DATABASE=taskboard mysql:8.4
+docker volume create survey-db-data
+docker run -d --name survey-db -v survey-db-data:/var/lib/mysql \
+  -e MYSQL_ROOT_PASSWORD=rootpw -e MYSQL_DATABASE=dynamic_survey mysql:8.4
 
 # 等 MySQL ready 後建表塞資料
-docker exec taskboard-db mysql -uroot -prootpw taskboard -e \
-  "CREATE TABLE task(id BIGINT PRIMARY KEY AUTO_INCREMENT, title VARCHAR(100));
-   INSERT INTO task(title) VALUES ('學會 Volume'),('備份資料庫');"
+docker exec survey-db mysql -uroot -prootpw dynamic_survey -e \
+  "CREATE TABLE demo_surveys(id INT PRIMARY KEY AUTO_INCREMENT, title VARCHAR(100));
+   INSERT INTO demo_surveys(title) VALUES ('學會 Volume'),('備份資料庫');"
 
-docker volume inspect taskboard-db-data
-docker rm -f taskboard-db          # 容器沒了
+docker volume inspect survey-db-data
+docker rm -f survey-db          # 容器沒了
 docker volume ls                   # Volume 還在
 
 # 用同一個 Volume 起新容器
-docker run -d --name taskboard-db-2 -v taskboard-db-data:/var/lib/mysql \
+docker run -d --name survey-db-2 -v survey-db-data:/var/lib/mysql \
   -e MYSQL_ROOT_PASSWORD=rootpw mysql:8.4
-docker exec taskboard-db-2 mysql -uroot -prootpw taskboard -e "select * from task;"
+docker exec survey-db-2 mysql -uroot -prootpw dynamic_survey -e "select * from demo_surveys;"
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
@@ -624,15 +624,15 @@ docker exec taskboard-db-2 mysql -uroot -prootpw taskboard -e "select * from tas
 layout: default
 ---
 
-# 練習 2：備份並還原 TaskBoard 資料庫
+# 練習 2：備份並還原動態問卷系統資料庫
 ### 任務說明
 
-情境：公司要把 TaskBoard 從你的開發機搬到測試伺服器。
+情境：公司要把動態問卷系統從你的開發機搬到測試伺服器。
 
-1. 用 `mysqldump` 把 `taskboard` 資料庫匯出成 `taskboard.sql`（邏輯備份）
-2. 另外用臨時容器 + `tar`，把 `taskboard-db-data` 打包成 `db-backup.tar`（實體備份）
-3. 建立全新的 Volume `taskboard-db-restore`，把 tar 還原進去
-4. 用還原後的 Volume 啟動新容器，`select * from task;` 確認資料完整
+1. 用 `mysqldump` 把 `dynamic_survey` 資料庫匯出成 `survey.sql`（邏輯備份）
+2. 另外用臨時容器 + `tar`，把 `survey-db-data` 打包成 `db-backup.tar`（實體備份）
+3. 建立全新的 Volume `survey-db-restore`，把 tar 還原進去
+4. 用還原後的 Volume 啟動新容器，`select * from demo_surveys;` 確認資料完整
 5. **想一想並回答**：兩種備份方式，哪一種檔案比較小？哪一種可以跨 MySQL 版本還原？正式環境的每日排程備份該用哪一種？
 
 <!--
@@ -651,31 +651,31 @@ layout: default
 
 ```bash
 # 1. 邏輯備份
-docker exec taskboard-db-2 mysqldump -uroot -prootpw taskboard > taskboard.sql
+docker exec survey-db-2 mysqldump -uroot -prootpw dynamic_survey > survey.sql
 
 # 2. 實體備份：借用執行中容器的 Volume
-docker run --rm --volumes-from taskboard-db-2 -v $(pwd):/backup \
+docker run --rm --volumes-from survey-db-2 -v $(pwd):/backup \
   alpine tar cvf /backup/db-backup.tar /var/lib/mysql
 
 # 3. 還原到新 Volume（注意 --strip 3 對應 /var/lib/mysql 三層）
-docker run --rm -v taskboard-db-restore:/var/lib/mysql -v $(pwd):/backup \
+docker run --rm -v survey-db-restore:/var/lib/mysql -v $(pwd):/backup \
   alpine sh -c "cd /var/lib/mysql && tar xvf /backup/db-backup.tar --strip 3"
 
 # 4. 用還原的 Volume 啟動並驗證
-docker run -d --name taskboard-db-restored \
-  -v taskboard-db-restore:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=rootpw mysql:8.4
-docker exec taskboard-db-restored mysql -uroot -prootpw taskboard -e "select * from task;"
+docker run -d --name survey-db-restored \
+  -v survey-db-restore:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=rootpw mysql:8.4
+docker exec survey-db-restored mysql -uroot -prootpw dynamic_survey -e "select * from demo_surveys;"
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-⚠️ <b>第 5 題答案：</b> <code>taskboard.sql</code> 通常只有幾 KB，<code>db-backup.tar</code> 動輒上百 MB（含 InnoDB 預留空間）。
+⚠️ <b>第 5 題答案：</b> <code>survey.sql</code> 通常只有幾 KB，<code>db-backup.tar</code> 動輒上百 MB（含 InnoDB 預留空間）。
 mysqldump 可跨版本、跨主機還原，正式環境的每日排程一律用它；tar 適合整機搬遷。
 </div>
 
 <!--
 ⚠️ 兩個易錯點。第一是 --strip 的數字，打包 /var/lib/mysql 是三層所以 strip 3，如果數字錯了不會報錯，但容器啟動會失敗，log 會說找不到資料檔。第二是 tar 備份時 MySQL 還在跑，嚴格來說有一致性風險，正式作業要先 stop。
 
-預期結果：最後那行 select 印出跟原本一樣的兩筆任務，證明資料完整搬過去了。做完記得清理：docker rm -f 那幾個測試容器，還有 docker volume rm 用不到的 Volume。
+預期結果：最後那行 select 印出跟原本一樣的兩筆資料，證明資料完整搬過去了。做完記得清理：docker rm -f 那幾個測試容器，還有 docker volume rm 用不到的 Volume。
 -->
 
 ---

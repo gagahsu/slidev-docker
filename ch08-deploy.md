@@ -100,8 +100,8 @@ Docker Compose 官方文件說明：**「路徑是相對於 compose.yaml 檔案�
 # .env（放在 compose.yaml 同一層）
 MYSQL_ROOT_PASSWORD=rootpw
 MYSQL_PASSWORD=apppw
-SPRING_PROFILES_ACTIVE=prod
-TASKBOARD_VERSION=1.0.0
+JWT_SECRET=NDI2ZTQ3M2E0MjY1NTk3MDRlNTgzODJlNmU2MzM0MzQzMzM2MzY3Mzc3
+SURVEY_VERSION=1.0.0
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
@@ -115,7 +115,7 @@ TASKBOARD_VERSION=1.0.0
 
 ⚠️ 這裡先預告一個等一下會再三強調的重點：.env 檔絕對不要 commit 進版控，等一下的注意事項會細講怎麼避免。
 
-範例裡放的就是 TaskBoard 前面幾章一直寫死在 compose.yaml 裡的那些值：資料庫密碼、Spring 的 profile、還有 image 版本號。前面幾章為了教學方便直接寫死，這一章我們要把它們全部搬出來。
+範例裡放的就是動態問卷系統前面幾章一直寫死在 compose.yaml 裡的那些值：資料庫密碼、JWT 簽章用的密鑰（`jwt.secret`，誰拿到它就能偽造管理員的 Token）、還有 image 版本號。前面幾章為了教學方便直接寫死，這一章我們要把它們全部搬出來。
 -->
 
 ---
@@ -146,29 +146,32 @@ TASKBOARD_VERSION=1.0.0
 
 # .env 用法 — 範例
 
-把 TaskBoard 的 compose.yaml 改成完全不含密碼的版本：
+把動態問卷系統的 compose.yaml 改成完全不含密碼的版本：
 
 ```yaml
 # compose.yaml — 這份可以安心進版控
 services:
   web:
-    image: myaccount/taskboard-web:${TASKBOARD_VERSION}
+    image: myaccount/survey-web:${SURVEY_VERSION}
     ports: ["8080:80"]
   api:
-    image: myaccount/taskboard-api:${TASKBOARD_VERSION}
+    image: myaccount/survey-api:${SURVEY_VERSION}
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/taskboard
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/dynamic_survey
       SPRING_DATASOURCE_USERNAME: appuser
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}
+      JWT_SECRET: ${JWT_SECRET}          # 對應 application.properties 的 jwt.secret
+      TZ: Asia/Taipei
   db:
     image: mysql:8.4
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: taskboard
+      MYSQL_DATABASE: dynamic_survey
       MYSQL_USER: appuser
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-    volumes: [db-data:/var/lib/mysql]
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
 
 volumes:
   db-data:
@@ -181,9 +184,11 @@ Compose 會自動去讀同一層目錄的 .env，把 ${MYSQL_PASSWORD} 這種佔
 
 ⚠️ 請大家注意一個很重要的區別，這是最多人搞混的：.env 裡的變數是給「Compose 檔案本身」做文字替換用的，不會自動變成容器裡的環境變數。api 服務之所以拿得到密碼，是因為我們在 environment 區塊明確寫了 SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}。如果只在 .env 裡寫了某個變數，卻沒在 environment 裡引用它，容器裡是看不到那個變數的。
 
-另外看 image 那行：版本號也用了 ${TASKBOARD_VERSION}。這樣要升版或回滾，只要改 .env 裡的一行版本號，再 docker compose up -d 就好，compose.yaml 完全不用動。這是實務上很常見的做法。
+另外看 image 那行：版本號也用了 ${SURVEY_VERSION}。這樣要升版或回滾，只要改 .env 裡的一行版本號，再 docker compose up -d 就好，compose.yaml 完全不用動。這是實務上很常見的做法。
 
-預期結果：docker compose up 之後，用 docker compose exec api env | grep SPRING 可以看到密碼確實被注入容器了，但 compose.yaml 裡沒有任何一個明文密碼。
+預期結果：docker compose up 之後，用 docker compose exec api env | grep -E "SPRING|JWT" 可以看到密碼與密鑰確實被注入容器了，但 compose.yaml 裡沒有任何一個明文密碼。
+
+⚠️ JWT_SECRET 這一行是 Spring Boot 「放寬綁定」的功能：環境變數 `JWT_SECRET` 會自動對應到 `jwt.secret` 這個設定，application.properties 裡那份開發用的假密鑰就被蓋掉了，同一個 image 在正式環境用不同的密鑰，不用重新 build。
 -->
 
 ---
@@ -196,15 +201,15 @@ Docker Compose 官方最佳實踐明確提到：**「Be cautious about including
 # .gitignore
 .env
 *.env.local
-taskboard-api/src/main/resources/application-local.yml
+survey-api/src/main/resources/application-local.yml
 ```
 
 ```bash
 # .env.example — 這份要進版控，只寫欄位不寫真值
 MYSQL_ROOT_PASSWORD=
 MYSQL_PASSWORD=
-SPRING_PROFILES_ACTIVE=prod
-TASKBOARD_VERSION=1.0.0
+JWT_SECRET=
+SURVEY_VERSION=1.0.0
 ```
 
 <div class="mt-4 p-3 bg-red-50 border-l-4 border-red-400 text-gray-700 text-sm text-left">
@@ -251,7 +256,7 @@ Docker image 的 tag 也是同樣的道理，這一部分我們就來聊聊怎�
 「Tag（標籤）」是幫 image 每一個版本貼上可辨識名字的機制，格式為 `NAME[:TAG]`，例如 `my-app:1.2.0`。Docker 官方建構最佳實踐提醒：**tag 是「可變的」（mutable）**——同一個 tag 隨時可能被覆蓋成不同內容的 image，這也是版本策略重要的原因。
 
 ```bash
-docker image tag taskboard-api:latest taskboard-api:1.2.0
+docker image tag survey-api:latest survey-api:1.2.0
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
@@ -295,16 +300,16 @@ docker image tag taskboard-api:latest taskboard-api:1.2.0
 用語意化版號（Semantic Versioning，`主版本.次版本.修訂版本`）搭配環境標記：
 
 ```bash
-# 修好任務刪除的 bug，只加修訂版本
-docker build -t taskboard-api:1.2.1 ./taskboard-api
+# 修好問卷批次刪除的 bug，只加修訂版本
+docker build -t survey-api:1.2.1 ./survey-api
 
-# 新增「任務標籤」功能，加次版本
-docker build -t taskboard-api:1.3.0 ./taskboard-api
+# 新增「匿名作答」功能，加次版本
+docker build -t survey-api:1.3.0 ./survey-api
 
 # 同時打上多個 tag：版本號 + git commit hash + 環境
-docker build -t taskboard-api:1.3.0 \
-  -t taskboard-api:$(git rev-parse --short HEAD) \
-  -t taskboard-api:staging ./taskboard-api
+docker build -t survey-api:1.3.0 \
+  -t survey-api:$(git rev-parse --short HEAD) \
+  -t survey-api:staging ./survey-api
 ```
 
 更保險的做法：搭配 digest（映像的內容雜湊值）鎖定版本，即使 tag 被覆蓋也不受影響：
@@ -320,7 +325,7 @@ FROM eclipse-temurin:21-jre-alpine@sha256:a8560b36e8b8210634f77d9f7f9efd7ffa463e
 
 第二段範例展示一次 build 打上三個 tag：1.3.0 給人看、git commit hash 給機器精準追蹤是哪次 commit、staging 給部署流程判斷要送去哪個環境。三個 tag 指向同一份 image，硬碟只佔一份。
 
-那個 commit hash 的 tag 特別有價值。正式環境出包的時候，你從監控看到跑的是 taskboard-api:a3f9c1e，直接 git checkout a3f9c1e 就能看到當時一模一樣的程式碼，不用猜。
+那個 commit hash 的 tag 特別有價值。正式環境出包的時候，你從監控看到跑的是 survey-api:a3f9c1e，直接 git checkout a3f9c1e 就能看到當時一模一樣的程式碼，不用猜。
 
 最後 Docker 官方文件特別提到更保險的做法是搭配 digest，也就是那串 sha256 開頭的雜湊值，這是根據 image 內容算出來的指紋，就算之後同一個 tag 被別人覆蓋成不同內容，我們鎖定 digest 的話還是能保證拿到原本那個版本。
 
@@ -351,8 +356,8 @@ class: flex flex-col justify-center items-center text-center
 | 概念 | 說明 |
 | --- | --- |
 | Registry | 存放 image 的伺服器服務，例如 Docker Hub |
-| Repository | Registry 裡的一個專案空間，例如 `myaccount/taskboard-api` |
-| Tag | Repository 底下的具體版本，例如 `myaccount/taskboard-api:1.2.0` |
+| Repository | Registry 裡的一個專案空間，例如 `myaccount/survey-api` |
+| Tag | Repository 底下的具體版本，例如 `myaccount/survey-api:1.2.0` |
 | Public repository | 任何人都能 pull，數量不限 |
 | Private repository | 需要權限才能存取，適合內部專案 |
 
@@ -373,10 +378,10 @@ Docker Hub 是最知名、也是最大的公開 Registry，但企業內部也常
 | 步驟 | 指令 | 說明 |
 | --- | --- | --- |
 | 1. 登入 | `docker login [REGISTRY_URL]` | 驗證帳號權限，Docker Hub 可省略網址 |
-| 2. 建置 | `docker build -t taskboard-api:1.2.0 ./taskboard-api` | 依 Dockerfile 組出 image |
-| 3. 標記 | `docker image tag taskboard-api:1.2.0 myaccount/taskboard-api:1.2.0` | 加上 registry/使用者前綴 |
-| 4. 推送 | `docker image push myaccount/taskboard-api:1.2.0` | 上傳到 Registry |
-| 5. 驗證 | `docker pull myaccount/taskboard-api:1.2.0` | 從部署伺服器測試拉取 |
+| 2. 建置 | `docker build -t survey-api:1.2.0 ./survey-api` | 依 Dockerfile 組出 image |
+| 3. 標記 | `docker image tag survey-api:1.2.0 myaccount/survey-api:1.2.0` | 加上 registry/使用者前綴 |
+| 4. 推送 | `docker image push myaccount/survey-api:1.2.0` | 上傳到 Registry |
+| 5. 驗證 | `docker pull myaccount/survey-api:1.2.0` | 從部署伺服器測試拉取 |
 
 <!--
 這是這一部分最核心的一張表，把「從自己電腦到讓別人拉得到」拆成五個步驟。
@@ -389,49 +394,49 @@ Docker Hub 是最知名、也是最大的公開 Registry，但企業內部也常
 
 第四步才是真正的上傳動作，第五步則是驗證，最好找另一台機器（或先刪掉本機的 image）重新 pull 一次，確認別人真的拉得到、也拉得對。
 
-⚠️ 易錯點：第三步的 tag 名稱一定要包含帳號或組織名稱，例如 myaccount/taskboard-api，不能只用 taskboard-api，不然會被當成要推去官方保留的命名空間，通常會被拒絕。
+⚠️ 易錯點：第三步的 tag 名稱一定要包含帳號或組織名稱，例如 myaccount/survey-api，不能只用 survey-api，不然會被當成要推去官方保留的命名空間，通常會被拒絕。
 
-順帶提醒，TaskBoard 有兩個 image 要推：taskboard-api 跟 taskboard-web。db 不用推，因為它直接用官方的 mysql:8.4。這也是一個實務原則——能用官方 image 就別自己包。
+順帶提醒，動態問卷系統有兩個 image 要推：survey-api 跟 survey-web。db 不用推，因為它直接用官方的 mysql:8.4。這也是一個實務原則——能用官方 image 就別自己包。
 -->
 
 ---
 
 # Build → Tag → Push — 範例
 
-TaskBoard 發布 1.2.0 版的完整流程：
+動態問卷系統發布 1.2.0 版的完整流程：
 
 ```bash
 # 1. 登入 Docker Hub
 docker login
 
 # 2. 建置兩個服務的 image
-docker build -t taskboard-api:1.2.0 ./taskboard-api
-docker build -t taskboard-web:1.2.0 ./taskboard-web
+docker build -t survey-api:1.2.0 ./survey-api
+docker build -t survey-web:1.2.0 ./survey-web
 
 # 3. 標記成含帳號的完整名稱
-docker image tag taskboard-api:1.2.0 myaccount/taskboard-api:1.2.0
-docker image tag taskboard-api:1.2.0 myaccount/taskboard-api:latest
-docker image tag taskboard-web:1.2.0 myaccount/taskboard-web:1.2.0
+docker image tag survey-api:1.2.0 myaccount/survey-api:1.2.0
+docker image tag survey-api:1.2.0 myaccount/survey-api:latest
+docker image tag survey-web:1.2.0 myaccount/survey-web:1.2.0
 
 # 4. 推送
-docker image push --all-tags myaccount/taskboard-api
-docker image push myaccount/taskboard-web:1.2.0
+docker image push --all-tags myaccount/survey-api
+docker image push myaccount/survey-web:1.2.0
 
 # 5. 在部署伺服器上：改 .env 的版本號後拉新版重啟
-#    TASKBOARD_VERSION=1.2.0
+#    SURVEY_VERSION=1.2.0
 docker compose pull && docker compose up -d
 ```
 
 <!--
-帶大家實際走一次完整流程，這就是 TaskBoard 真正上線的樣子。
+帶大家實際走一次完整流程，這就是動態問卷系統真正上線的樣子。
 
 注意第 3 步同時打了 1.2.0 跟 latest：語意化版號給精準追蹤用，latest 方便沒指定版本時的預設拉取。但正式環境的 compose.yaml 一定要明確寫版本號，不要依賴 latest。
 
-第 5 步是這頁最實用的一段，也是把前面所有東西串起來的地方。部署伺服器上不需要有原始碼、不需要裝 JDK、不需要裝 Node，只要有 Docker、一份 compose.yaml 跟一份 .env。要升版就改 .env 裡的 TASKBOARD_VERSION，然後 compose pull 把新 image 拉下來、compose up -d 讓 Compose 自動把有變動的服務重建重啟。
+第 5 步是這頁最實用的一段，也是把前面所有東西串起來的地方。部署伺服器上不需要有原始碼、不需要裝 JDK、不需要裝 Node，只要有 Docker、一份 compose.yaml 跟一份 .env。要升版就改 .env 裡的 SURVEY_VERSION，然後 compose pull 把新 image 拉下來、compose up -d 讓 Compose 自動把有變動的服務重建重啟。
 
 回滾更簡單：.env 改回 1.1.0，同樣兩行指令，三十秒回到上一版。這就是我們前面堅持要有版本 tag 的回報。
 
-預期結果：push 完成後到 Docker Hub 該帳號頁面，能看到 taskboard-api 跟 taskboard-web 兩個 repository。
+預期結果：push 完成後到 Docker Hub 該帳號頁面，能看到 survey-api 跟 survey-web 兩個 repository。
 
 ⚠️ 推送過程中進度條顯示的是「未壓縮」大小，實際傳輸的資料量因為壓縮而更小，所以不用太在意進度條顯示的數字比預期的檔案大。
 -->
@@ -470,7 +475,7 @@ CI/CD 說穿了就是把我們前面學的 build、tag、push 這一整套流程
 ```yaml
 services:
   api:
-    image: myaccount/taskboard-api:${TASKBOARD_VERSION}
+    image: myaccount/survey-api:${SURVEY_VERSION}
     restart: unless-stopped              # 掛掉自動重啟，主機重開也會自己起來
     healthcheck:                         # 用 Actuator 判斷「活著」
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
@@ -487,11 +492,11 @@ services:
 ```
 
 <!--
-這頁是把 TaskBoard 推上正式環境前的最後一哩路，三件事。
+這頁是把動態問卷系統推上正式環境前的最後一哩路，三件事。
 
 第一是 restart: unless-stopped。容器如果因為 OOM 或程式例外掛掉，Docker 會自動重啟；主機重開機它也會自己起來。不加這行，半夜服務掛了就是掛到早上。unless-stopped 的意思是「除非你手動 stop，否則我一直重啟」，比 always 好，因為你手動停掉的服務不會被硬拉起來。
 
-第二是 healthcheck，這裡用 Spring Boot Actuator 的 /actuator/health。這比單純看「容器有沒有在跑」精準太多——Java 行程還活著，但資料庫連線池爆了、應用其實已經沒有服務能力，這種情況只有健康檢查抓得到。注意 start_period 那行，Spring Boot 啟動要二三十秒，沒有寬限期的話它會在啟動途中就被判定不健康。
+第二是 healthcheck，這裡用 Spring Boot Actuator 的 /actuator/health（課程專案已經在 build.gradle 加了 `spring-boot-starter-actuator`，application.properties 只公開 health 這一個端點，SecurityConfig 也放行了 `/actuator/health`——少了最後這一步，健康檢查會一直回 401，容器永遠是 unhealthy）。這比單純看「容器有沒有在跑」精準太多——Java 行程還活著，但資料庫連線池爆了、應用其實已經沒有服務能力，這種情況只有健康檢查抓得到。注意 start_period 那行，Spring Boot 啟動要二三十秒，沒有寬限期的話它會在啟動途中就被判定不健康。
 
 第三是資源限制，這是很多人忽略但很重要的一項。JVM 預設會看「整台主機」有多少記憶體來決定堆積大小，主機有 32GB 它就敢用 8GB。萬一 API 有記憶體洩漏，它會一路吃到把整台機器連同資料庫一起拖垮。設了 memory: 1g 之後，容器最多用 1GB，超過就只有這個容器被 OOM kill 掉，其他服務不受影響——爆炸有邊界。
 
@@ -502,16 +507,16 @@ services:
 layout: default
 ---
 
-# 練習 1：把 TaskBoard 的密碼從版控裡趕出去
+# 練習 1：把動態問卷系統的密碼從版控裡趕出去
 ### 任務說明
 
-拿出第五章那份 `compose.yaml`，裡面 `rootpw`、`apppw` 都是明文寫死的。請完成：
+拿出第五章那份 `compose.yaml`，裡面 `rootpw`、`apppw` 都是明文寫死的（`jwt.secret` 則是寫死在 application.properties 裡）。請完成：
 
-1. 建立 `.env`，把 `MYSQL_ROOT_PASSWORD`、`MYSQL_PASSWORD`、`TASKBOARD_VERSION` 移進去
+1. 建立 `.env`，把 `MYSQL_ROOT_PASSWORD`、`MYSQL_PASSWORD`、`JWT_SECRET`、`SURVEY_VERSION` 移進去（`JWT_SECRET` 可以用 `openssl rand -base64 48` 產生）
 2. 改寫 `compose.yaml`，全部改用 `${}` 插值，確保檔案裡**看不到任何一個明文密碼**
 3. 把 `.env` 加進 `.gitignore`，並建立可進版控的 `.env.example`
-4. 幫 `taskboard-api` 與 `taskboard-web` 補上語意化版號 tag `1.0.0`
-5. 驗證：`docker compose up -d` 之後，用 `docker compose exec api env | grep SPRING` 確認密碼真的有被注入容器
+4. 幫 `survey-api` 與 `survey-web` 補上語意化版號 tag `1.0.0`
+5. 驗證：`docker compose up -d` 之後，用 `docker compose exec api env | grep -E "SPRING|JWT"` 確認密碼與密鑰真的有被注入容器，並且能用 `admin@example.com` 登入（表示新的 `JWT_SECRET` 有效）
 
 <!--
 第一題重點在複習前兩部分的核心觀念：設定與程式碼分開、密碼不進版控、版本要有明確標記。
@@ -531,7 +536,8 @@ layout: default
 # .env（不進版控）
 MYSQL_ROOT_PASSWORD=rootpw
 MYSQL_PASSWORD=apppw
-TASKBOARD_VERSION=1.0.0
+JWT_SECRET=請換成 openssl rand -base64 48 的結果
+SURVEY_VERSION=1.0.0
 ```
 
 ```yaml
@@ -541,13 +547,17 @@ TASKBOARD_VERSION=1.0.0
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+  api:
+    environment:
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
 ```
 
 ```bash
 echo ".env" >> .gitignore
-docker image tag taskboard-api:latest taskboard-api:1.0.0
+docker image tag survey-api:latest survey-api:1.0.0
 docker compose config          # 展開後檢查變數有沒有正確代入
-docker compose exec api env | grep SPRING
+docker compose exec api env | grep -E "SPRING|JWT"
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
@@ -566,13 +576,13 @@ docker compose exec api env | grep SPRING
 layout: default
 ---
 
-# 練習 2：完整發布 TaskBoard 到 Registry
+# 練習 2：完整發布動態問卷系統到 Registry
 ### 任務說明
 
-把 TaskBoard 1.0.0 版發布出去，並模擬部署伺服器拉取。
+把動態問卷系統 1.0.0 版發布出去，並模擬部署伺服器拉取。
 
 1. 登入 Docker Hub
-2. 建置 `taskboard-api` 與 `taskboard-web` 的 1.0.0 版 image
+2. 建置 `survey-api` 與 `survey-web` 的 1.0.0 版 image
 3. 標記成含帳號的完整名稱（版本號 + `latest` + git commit hash 三種 tag）
 4. 推送到 Registry
 5. 模擬部署伺服器：刪掉本機 image 後重新 `pull`，用只有 `compose.yaml` + `.env` 的方式啟動整套
@@ -583,7 +593,7 @@ layout: default
 
 第 5 步請大家真的把本機 image 刪掉再拉，因為這才是「部署伺服器」的真實狀態——那台機器上沒有原始碼、沒有 JDK、沒有 Node，只有 Docker 跟兩個設定檔。能跑起來，就證明我們八章學的容器化真的完成了。
 
-第 6 題是我最想留給大家的一個觀念。答案是：改 .env 裡的 TASKBOARD_VERSION=0.9.0，然後 docker compose pull && docker compose up -d。就這樣，三十秒。這個能力——出事能快速回到上一個好版本——就是我們前面堅持要打版本 tag、堅持不用 latest 的全部理由。
+第 6 題是我最想留給大家的一個觀念。答案是：改 .env 裡的 SURVEY_VERSION=0.9.0，然後 docker compose pull && docker compose up -d。就這樣，三十秒。這個能力——出事能快速回到上一個好版本——就是我們前面堅持要打版本 tag、堅持不用 latest 的全部理由。
 -->
 
 ---
@@ -595,27 +605,27 @@ layout: default
 ```bash
 # 1-2. 登入並建置
 docker login
-docker build -t taskboard-api:1.0.0 ./taskboard-api
-docker build -t taskboard-web:1.0.0 ./taskboard-web
+docker build -t survey-api:1.0.0 ./survey-api
+docker build -t survey-web:1.0.0 ./survey-web
 
 # 3. 三種 tag
 GIT_SHA=$(git rev-parse --short HEAD)
-docker image tag taskboard-api:1.0.0 myaccount/taskboard-api:1.0.0
-docker image tag taskboard-api:1.0.0 myaccount/taskboard-api:latest
-docker image tag taskboard-api:1.0.0 myaccount/taskboard-api:$GIT_SHA
+docker image tag survey-api:1.0.0 myaccount/survey-api:1.0.0
+docker image tag survey-api:1.0.0 myaccount/survey-api:latest
+docker image tag survey-api:1.0.0 myaccount/survey-api:$GIT_SHA
 
 # 4. 推送
-docker image push --all-tags myaccount/taskboard-api
-docker image push --all-tags myaccount/taskboard-web
+docker image push --all-tags myaccount/survey-api
+docker image push --all-tags myaccount/survey-web
 
 # 5. 模擬部署機：清乾淨再拉
 docker compose down
-docker rmi myaccount/taskboard-api:1.0.0 myaccount/taskboard-web:1.0.0
+docker rmi myaccount/survey-api:1.0.0 myaccount/survey-web:1.0.0
 docker compose pull && docker compose up -d
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-⚠️ <b>第 6 題答案：</b> 改 <code>.env</code> 的 <code>TASKBOARD_VERSION=0.9.0</code>，然後
+⚠️ <b>第 6 題答案：</b> 改 <code>.env</code> 的 <code>SURVEY_VERSION=0.9.0</code>，然後
 <code>docker compose pull && docker compose up -d</code> — 這就是版本 tag 存在的全部意義。
 </div>
 
@@ -624,7 +634,7 @@ docker compose pull && docker compose up -d
 
 ⚠️ 第 5 步的驗證非常重要，很多人推送完就以為結束了，但沒有實際拉取驗證過，不知道部署機是不是真的拉得到、拉到的是不是預期的版本。養成「推送後一定驗證」的習慣。
 
-最後回顧一下我們這八章對 TaskBoard 做了什麼：第一章用 docker run 起了一個 MySQL，第八章我們有一套版本化、密碼不落地、可以三十秒回滾的完整部署流程。同一個專案，從「在我電腦上可以跑」變成「在任何裝了 Docker 的機器上都能跑」。這就是容器化。
+最後回顧一下我們這八章對動態問卷系統做了什麼：第一章用 docker run 起了一個 MySQL，第八章我們有一套版本化、密碼不落地、可以三十秒回滾的完整部署流程。同一個專案，從「在我電腦上可以跑」變成「在任何裝了 Docker 的機器上都能跑」。這就是容器化。
 -->
 
 ---

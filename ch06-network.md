@@ -90,7 +90,7 @@ class: flex flex-col justify-center items-center text-center
 
 # 什麼是 Docker Network？
 
-多個 Container 各自運作於獨立沙盒，沒有網路設定時彼此互相看不到。TaskBoard 的 `taskboard-api` 要連 `taskboard-db`、前端要連後端，靠的全是 Docker Network。
+多個 Container 各自運作於獨立沙盒，沒有網路設定時彼此互相看不到。動態問卷系統的 `survey-api` 要連 `survey-db`、前端要連後端，靠的全是 Docker Network。
 
 Docker Network 負責建立 Container 之間的通訊管道：
 
@@ -103,7 +103,7 @@ Docker 提供多種 **Network Driver（網路驅動程式）**，各代表不同
 - `none`：完全隔離，無對外連線
 
 <!--
-大家可以直接想 TaskBoard：三個 Container，一個 Angular 前端、一個 Spring Boot 後端、一個 MySQL。如果什麼都不設定，這三個 Container 其實是互相看不見的，就像住在不同社區的人，彼此不認識。第三章我們被迫用 host.docker.internal 繞一大圈，就是因為當時什麼網路都沒設。
+大家可以直接想動態問卷系統：三個 Container，一個 Angular 前端、一個 Spring Boot 後端、一個 MySQL。如果什麼都不設定，這三個 Container 其實是互相看不見的，就像住在不同社區的人，彼此不認識。第三章我們被迫用 host.docker.internal 繞一大圈，就是因為當時什麼網路都沒設。
 
 Docker Network 的工作，就是決定這些「社區」之間、以及社區跟外面馬路（主機、網際網路）之間，要用什麼規則來往。
 
@@ -122,9 +122,9 @@ Docker Network 的工作，就是決定這些「社區」之間、以及社區�
 
 ```bash
 # 三種模式的基本語法
-docker run --network bridge taskboard-api:1.0.0   # 預設，TaskBoard 用這個
-docker run --network host taskboard-api:1.0.0     # 直接佔用主機 8080
-docker run --network none taskboard-api:1.0.0     # 連不到 DB，起不來
+docker run --network bridge survey-api:1.0.0   # 預設，動態問卷系統用這個
+docker run --network host survey-api:1.0.0     # 直接佔用主機 8080
+docker run --network none survey-api:1.0.0     # 連不到 DB，起不來
 ```
 
 <!--
@@ -145,12 +145,12 @@ none 則是「完全把 Container 與主機和其他 Container 隔離」，這�
 
 ```bash
 # bridge：預設模式，Container 會拿到獨立的私有 IP
-docker run -d --name taskboard-db mysql:8.4
-docker inspect -f '{{.NetworkSettings.IPAddress}}' taskboard-db
+docker run -d --name survey-db mysql:8.4
+docker inspect -f '{{.NetworkSettings.IPAddress}}' survey-db
 # 172.17.0.2
 
 # host：不再有獨立 IP，Spring Boot 的 8080 直接等於主機的 8080
-docker run -d --network host --name taskboard-api taskboard-api:1.0.0
+docker run -d --network host --name survey-api survey-api:1.0.0
 # 不用 -p，但如果本機 IDE 也在跑 8080，就直接衝突
 
 # none：完全沒有網路介面
@@ -165,9 +165,9 @@ docker run --rm --network none alpine ip addr
 
 第二段，用 host 模式跑 Spring Boot，這時候容器裡監聽的 8080 就直接等於主機的 8080，不需要 -p，沒有中間的 NAT 轉換，效能最好。但代價是沒有隔離——很多同學 IDE 裡本來就開著一個 8080 的 Spring Boot，這樣直接衝突。而且 ⚠️ host 模式在 Windows / Mac 的 Docker Desktop 上行為跟 Linux 不同，不建議大家在開發機上依賴它。
 
-第三段，用 none 模式，進去看網路介面只剩 loopback，完全連不到外面。如果 taskboard-api 掛在 none 上，它連 DNS 都查不到，啟動時直接 Communications link failure。
+第三段，用 none 模式，進去看網路介面只剩 loopback，完全連不到外面。如果 survey-api 掛在 none 上，它連 DNS 都查不到，啟動時直接 Communications link failure。
 
-預期結果：三種模式，網路行為完全不同。TaskBoard 全程用 bridge，這也是 99% 的情況該用的。
+預期結果：三種模式，網路行為完全不同。動態問卷系統全程用 bridge，這也是 99% 的情況該用的。
 -->
 
 ---
@@ -218,16 +218,16 @@ Container 內監聽的 port（例如 80）屬於自己的網路空間，主機�
 
 ```bash
 # 前端：主機 8080 對應容器 80，同事也能用你的 IP 連進來看
-docker run -d -p 8080:80 --name taskboard-web taskboard-web:1.0.0
+docker run -d -p 8080:80 --name survey-web survey-web:1.0.0
 
 # 資料庫：只允許本機連線，外部連不進來（開發機的正確做法）
-docker run -d -p 127.0.0.1:3307:3306 --name taskboard-db mysql:8.4
+docker run -d -p 127.0.0.1:3307:3306 --name survey-db mysql:8.4
 
 # 讓 Docker 自動挑一個沒被佔用的主機 port（會用 Dockerfile 裡的 EXPOSE 8080）
-docker run -d -P --name taskboard-api taskboard-api:1.0.0
+docker run -d -P --name survey-api survey-api:1.0.0
 
 # 查詢實際映射到哪個 port
-docker port taskboard-api
+docker port survey-api
 # 8080/tcp -> 0.0.0.0:32768
 ```
 
@@ -238,7 +238,7 @@ docker port taskboard-api
 
 第三段的 -P 大寫，Docker 會讀 Dockerfile 裡的 EXPOSE 8080，自動找一個沒人用的主機 port 映射過去。這在同時要跑好幾個測試環境、懶得自己分配 port 的時候很方便，但因為 port 是隨機的，要用 docker port 查才知道。
 
-預期結果：第一段跑完，瀏覽器連 http://localhost:8080 就看得到 TaskBoard 的畫面。
+預期結果：第一段跑完，瀏覽器連 http://localhost:8080 就看得到動態問卷系統的畫面。
 -->
 
 ---
@@ -316,43 +316,44 @@ Container 加入自訂網路後，Docker 會啟動內建 **DNS Server（位址 1
 # 自訂 Network — 範例
 
 ```bash
-# 1. 建立 TaskBoard 專用網路
-docker network create taskboard-net
+# 1. 建立動態問卷系統專用網路
+docker network create survey-net
 
 # 2. 資料庫加入網路，不對外開 port
-docker run -d --network taskboard-net --name taskboard-db \
-  -e MYSQL_ROOT_PASSWORD=rootpw -e MYSQL_DATABASE=taskboard \
-  -e MYSQL_USER=appuser -e MYSQL_PASSWORD=apppw mysql:8.4
+docker run -d --network survey-net --name survey-db \
+  -e MYSQL_ROOT_PASSWORD=rootpw -e MYSQL_DATABASE=dynamic_survey \
+  -e MYSQL_USER=appuser -e MYSQL_PASSWORD=apppw \
+  -v "$PWD/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro" mysql:8.4
 
 # 3. 後端加入同一網路，連線字串終於可以寫服務名稱了
-docker run -d --network taskboard-net -p 8081:8080 --name taskboard-api \
-  -e SPRING_DATASOURCE_URL=jdbc:mysql://taskboard-db:3306/taskboard \
+docker run -d --network survey-net -p 8081:8080 --name survey-api \
+  -e SPRING_DATASOURCE_URL=jdbc:mysql://survey-db:3306/dynamic_survey \
   -e SPRING_DATASOURCE_USERNAME=appuser \
   -e SPRING_DATASOURCE_PASSWORD=apppw \
-  taskboard-api:1.0.0
+  survey-api:1.0.0
 
 # 4. 驗證 DNS 解析
-docker exec taskboard-api ping -c 2 taskboard-db
-# PING taskboard-db (172.18.0.2): 56 data bytes
+docker exec survey-api ping -c 2 survey-db
+# PING survey-db (172.18.0.2): 56 data bytes
 # 64 bytes from 172.18.0.2: seq=0 ttl=64 time=0.085 ms
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>對照第三章：</b> 當時被迫寫 <code>host.docker.internal:3307</code>（繞出容器再繞回來），現在直接寫 <code>taskboard-db:3306</code> — 容器內走的是內部網路，用的是 MySQL 原本的 3306，不是主機映射的 3307。
+💡 <b>對照第三章：</b> 當時被迫寫 <code>host.docker.internal:3307</code>（繞出容器再繞回來），現在直接寫 <code>survey-db:3306</code> — 容器內走的是內部網路，用的是 MySQL 原本的 3306，不是主機映射的 3307。<br>另外，資料庫多了一行 <code>-v ... init.sql</code>：把建表與範例資料的腳本掛進 MySQL 的 <code>/docker-entrypoint-initdb.d/</code>，第一次啟動會自動執行（第七章詳細講掛載）。我們的 API 用 <code>ddl-auto=validate</code>，資料庫沒有表會啟動失敗。
 </div>
 
 <!--
 這頁是整章最重要的一頁，我們終於把第三章那個難看的寫法修好了。
 
-第一步建立 taskboard-net，就像新建了一個有門禁的社區。
+第一步建立 survey-net，就像新建了一個有門禁的社區。
 
 第二步，資料庫加入網路，而且注意：這次完全沒有 -p。因為 API 是從網路內部連過來的，不需要經過主機。資料庫不對外曝露，這是正式環境的標準做法。
 
-第三步是重點中的重點。連線字串從 `host.docker.internal:3307` 變成 `taskboard-db:3306`，兩個地方都改了：主機名稱變成容器名稱，port 從 3307 變回 3306。
+第三步是重點中的重點。連線字串從 `host.docker.internal:3307` 變成 `survey-db:3306`，兩個地方都改了：主機名稱變成容器名稱，port 從 3307 變回 3306。
 
-⚠️ 這個 port 的變化請大家一定要弄懂，這是最多人卡住的地方。3307 是「主機」看到的 port，是 -p 映射出來的；但現在 API 容器是從內部網路直接找 taskboard-db，走的是容器對容器，這條路上根本沒有經過 -p 的映射，所以要用 MySQL 容器內部真正在聽的 3306。簡單記法：容器對容器，一律用容器內的原始 port。
+⚠️ 這個 port 的變化請大家一定要弄懂，這是最多人卡住的地方。3307 是「主機」看到的 port，是 -p 映射出來的；但現在 API 容器是從內部網路直接找 survey-db，走的是容器對容器，這條路上根本沒有經過 -p 的映射，所以要用 MySQL 容器內部真正在聽的 3306。簡單記法：容器對容器，一律用容器內的原始 port。
 
-第四步用 ping 驗證，看到有回應就代表 Docker 內建的 DNS（127.0.0.11）成功把 taskboard-db 這個名字翻譯成 IP 了。
+第四步用 ping 驗證，看到有回應就代表 Docker 內建的 DNS（127.0.0.11）成功把 survey-db 這個名字翻譯成 IP 了。
 
 ⚠️ 另一個易錯點：兩個容器必須在「同一個」自訂網路才找得到彼此，掛在不同網路一樣是陌生人。
 -->
@@ -383,10 +384,10 @@ layout: default
 
 # 實戰：nginx 反向代理 /api
 
-前端 Angular 打 `http://localhost:8081/api/tasks` 會遇到 **CORS 跨域**問題。實務解法：讓 nginx 把 `/api` 轉發給後端，瀏覽器眼中只有一個來源。
+前端（`localhost:8080`）要呼叫後端（`localhost:8081`）會遇到 **CORS 跨域**問題；而且 Angular 的 production build 呼叫的是同源的 `/api`，nginx 根本沒人接。實務解法：讓 nginx 把 `/api` 轉發給後端，瀏覽器眼中只有一個來源。
 
 ```nginx
-# taskboard-web/nginx.conf
+# survey-web/nginx.conf
 server {
   listen 80;
 
@@ -396,29 +397,31 @@ server {
   }
 
   location /api/ {                      # 轉發給後端容器
-    proxy_pass http://taskboard-api:8080/api/;
-    proxy_set_header Host $host;
+    proxy_pass http://survey-api:8080/api/;
+    proxy_set_header Host $http_host;   # 要帶 port（localhost:8080），Spring 才會把請求當成同源
     proxy_set_header X-Real-IP $remote_addr;
   }
 }
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>成果：</b> Angular 的 <code>environment.apiUrl</code> 直接寫 <code>/api</code>（相對路徑）即可 — 開發、測試、正式環境完全不用改前端程式碼。
+💡 <b>成果：</b> 前端的 API 網址直接用 <code>/api</code>（相對路徑）— 課程專案的 <code>core/api.ts</code> 用 <code>isDevMode() ? 'http://localhost:8080/api' : '/api'</code>：<code>ng serve</code> 開發時直連後端，Docker 的 production build 走同源的 <code>/api</code>，測試、正式環境完全不用改前端程式碼。
 </div>
 
 <!--
-這頁是把今天學的 DNS 解析用在真實痛點上，大家做過 Angular 專案應該都被 CORS 咬過。
+這頁是把今天學的 DNS 解析用在真實痛點上，大家做過 Angular 專案應該都被 CORS 咬過（Angular 課的 ch29 就親自體驗過）。
 
 問題是這樣：前端在 localhost:8080，後端在 localhost:8081，瀏覽器認為這是兩個不同來源，AJAX 請求會被擋下來，除非後端加一堆 CORS 設定。很多人的做法是在 Spring Boot 加 @CrossOrigin，但那是治標，而且正式環境要維護一份允許清單。
 
-比較好的做法是這頁的反向代理。瀏覽器只認識 localhost:8080 這一個來源，它打 /api/tasks，nginx 收到之後在容器網路內部轉發給 taskboard-api:8080。注意 proxy_pass 那行的主機名稱——就是我們剛剛學的容器名稱 DNS 解析，因為 nginx 容器跟 API 容器在同一個 taskboard-net 上。
+比較好的做法是這頁的反向代理。瀏覽器只認識 localhost:8080 這一個來源，它打 /api/surveys，nginx 收到之後在容器網路內部轉發給 survey-api:8080。注意 proxy_pass 那行的主機名稱——就是我們剛剛學的容器名稱 DNS 解析，因為 nginx 容器跟 API 容器在同一個 survey-net 上。
 
 從瀏覽器的角度，它從頭到尾只跟一個網站說話，沒有跨域，CORS 設定一行都不用寫。
 
-另外那個 try_files 也很重要：Angular 是 SPA，路由都在前端。使用者直接輸入網址 /tasks/5 重新整理的話，nginx 會去找一個叫 tasks/5 的實體檔案，找不到就回 404。try_files 的意思是「找不到就統一回 index.html」，讓 Angular 自己處理路由。這是所有 SPA 部署都要設的一行，忘了就會出現「首頁正常但重新整理 404」的經典災情。
+⚠️ 另外一個很容易漏掉的細節是 `proxy_set_header Host $http_host;`。nginx 預設轉發的 Host 是 `$host`，也就是不帶 port 的 `localhost`；而瀏覽器送的 Origin 是 `http://localhost:8080`。Spring 比對「Origin 跟 Host 是不是同一個來源」時，發現 `localhost:8080` 對不上 `localhost`，就把它當成跨域請求，而我們後端的 CORS 只允許 4200，結果登入就回 403。寫成 `$http_host`（保留原本的 Host，含 port）就對了。
 
-⚠️ 易錯點：proxy_pass 結尾的斜線有沒有寫，轉發出去的路徑會不一樣。寫成 `proxy_pass http://taskboard-api:8080;`（沒有 /api/）時，後端收到的路徑會保留 /api 前綴。兩種都可以用，重點是要跟後端 Controller 的 @RequestMapping 對得上。
+另外那個 try_files 也很重要：Angular 是 SPA，路由都在前端。使用者直接輸入網址 /surveys/5 重新整理的話，nginx 會去找一個叫 surveys/5 的實體檔案，找不到就回 404。try_files 的意思是「找不到就統一回 index.html」，讓 Angular 自己處理路由。這是所有 SPA 部署都要設的一行，忘了就會出現「首頁正常但重新整理 404」的經典災情。
+
+⚠️ 易錯點：proxy_pass 結尾的斜線有沒有寫，轉發出去的路徑會不一樣。寫成 `proxy_pass http://survey-api:8080;`（沒有 /api/）時，後端收到的路徑會保留 /api 前綴。兩種都可以用，重點是要跟後端 Controller 的 @RequestMapping 對得上。
 -->
 
 ---
@@ -432,11 +435,11 @@ layout: default
 
 **目標：**
 
-1. 建立一個名為 `taskboard-net` 的自訂網路
-2. 啟動 `taskboard-db`（`mysql:8.4`）加入這個網路，**不要加 `-p`**
-3. 啟動 `taskboard-api` 加入同一個網路，`-p 8081:8080`，連線字串改用服務名稱
-4. 用 `docker exec` 驗證 API 容器能 ping 通 `taskboard-db`
-5. 看 `docker logs taskboard-api`，確認 Spring Boot 成功啟動、沒有 `Communications link failure`
+1. 建立一個名為 `survey-net` 的自訂網路
+2. 啟動 `survey-db`（`mysql:8.4`）加入這個網路，**不要加 `-p`**
+3. 啟動 `survey-api` 加入同一個網路，`-p 8081:8080`，連線字串改用服務名稱
+4. 用 `docker exec` 驗證 API 容器能 ping 通 `survey-db`
+5. 看 `docker logs survey-api`，確認 Spring Boot 成功啟動、沒有 `Communications link failure`
 
 <!--
 第一題是暖身題，但情境完全實用：建立網路、加入容器、用名稱連線。
@@ -454,30 +457,31 @@ layout: default
 ### 提示說明
 
 ```bash
-docker network create taskboard-net
+docker network create survey-net
 
-docker run -d --network taskboard-net --name taskboard-db \
-  -e MYSQL_ROOT_PASSWORD=rootpw -e MYSQL_DATABASE=taskboard \
-  -e MYSQL_USER=appuser -e MYSQL_PASSWORD=apppw mysql:8.4
+docker run -d --network survey-net --name survey-db \
+  -e MYSQL_ROOT_PASSWORD=rootpw -e MYSQL_DATABASE=dynamic_survey \
+  -e MYSQL_USER=appuser -e MYSQL_PASSWORD=apppw \
+  -v "$PWD/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro" mysql:8.4
 
-docker run -d --network taskboard-net -p 8081:8080 --name taskboard-api \
-  -e SPRING_DATASOURCE_URL=jdbc:mysql://taskboard-db:3306/taskboard \
+docker run -d --network survey-net -p 8081:8080 --name survey-api \
+  -e SPRING_DATASOURCE_URL=jdbc:mysql://survey-db:3306/dynamic_survey \
   -e SPRING_DATASOURCE_USERNAME=appuser -e SPRING_DATASOURCE_PASSWORD=apppw \
-  taskboard-api:1.0.0
+  survey-api:1.0.0
 
-docker exec taskboard-api ping -c 2 taskboard-db
-docker logs taskboard-api | tail -20
+docker exec survey-api ping -c 2 survey-db
+docker logs survey-api | tail -20
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
 ⚠️ <b>兩個必踩的坑：</b> (1) 連線字串 port 要寫 <b>3306</b> 不是 3307 — 容器對容器不經過 <code>-p</code> 映射。
-(2) 兩個容器都要加 <code>--network taskboard-net</code>，漏一個就掉回預設網路，用 <code>docker network inspect taskboard-net</code> 可以查誰在裡面。
+(2) 兩個容器都要加 <code>--network survey-net</code>，漏一個就掉回預設網路，用 <code>docker network inspect survey-net</code> 可以查誰在裡面。
 </div>
 
 <!--
 提示的關鍵在下面那個警示框，這兩個坑十個人有八個會踩。
 
-第一個是 port。大家已經很習慣 3307 了，反射性就寫上去，結果 API 一直連不到——因為 taskboard-db 容器內部根本沒有人在聽 3307。
+第一個是 port。大家已經很習慣 3307 了，反射性就寫上去，結果 API 一直連不到——因為 survey-db 容器內部根本沒有人在聽 3307。
 
 第二個是忘記加 --network，容器就跑到預設 bridge 去了，這時候名稱解析不到，錯誤訊息會是 UnknownHostException。用 docker network inspect 看 Containers 區塊，就知道誰真的在網路裡。
 -->
@@ -491,13 +495,13 @@ layout: default
 
 **目標：** 前端對外、後端與資料庫全部藏在內部網路。
 
-1. 沿用 `taskboard-net`，啟動 `taskboard-db`（不對外）與 `taskboard-api`（**這次也不要加 `-p`**）
-2. 幫 `taskboard-web` 寫一份 `nginx.conf`，把 `/api/` 反向代理到 `http://taskboard-api:8080/api/`，並加上 SPA 的 `try_files` fallback
-3. 重新 build `taskboard-web:1.0.0`，啟動時只開放 `-p 8080:80`
+1. 沿用 `survey-net`，啟動 `survey-db`（不對外）與 `survey-api`（**這次也不要加 `-p`**）
+2. 幫 `survey-web` 寫一份 `nginx.conf`，把 `/api/` 反向代理到 `http://survey-api:8080/api/`，並加上 SPA 的 `try_files` fallback
+3. 重新 build `survey-web:1.0.0`，啟動時只開放 `-p 8080:80`
 4. 驗證：
-   - 瀏覽器打開 `http://localhost:8080` 看得到前端，新增任務會成功寫進資料庫
+   - 瀏覽器打開 `http://localhost:8080` 看得到前端與問卷列表（資料來自 API 與資料庫），登入 `admin@example.com` / `Passw0rd12` 能進後台
    - `curl http://localhost:8081/actuator/health` **應該連不上**（API 沒對外）
-   - `docker exec taskboard-web ping -c 2 taskboard-api` 應該通
+   - `docker exec survey-web ping -c 2 survey-api` 應該通
 5. 想一想：整套只曝露一個 port，這對正式環境的資安有什麼好處？
 
 <!--
@@ -518,25 +522,26 @@ layout: default
 ### 提示說明
 
 ```bash
-docker run -d --network taskboard-net --name taskboard-db \
-  -e MYSQL_ROOT_PASSWORD=rootpw -e MYSQL_DATABASE=taskboard \
-  -e MYSQL_USER=appuser -e MYSQL_PASSWORD=apppw mysql:8.4
+docker run -d --network survey-net --name survey-db \
+  -e MYSQL_ROOT_PASSWORD=rootpw -e MYSQL_DATABASE=dynamic_survey \
+  -e MYSQL_USER=appuser -e MYSQL_PASSWORD=apppw \
+  -v "$PWD/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro" mysql:8.4
 
-docker run -d --network taskboard-net --name taskboard-api \
-  -e SPRING_DATASOURCE_URL=jdbc:mysql://taskboard-db:3306/taskboard \
+docker run -d --network survey-net --name survey-api \
+  -e SPRING_DATASOURCE_URL=jdbc:mysql://survey-db:3306/dynamic_survey \
   -e SPRING_DATASOURCE_USERNAME=appuser -e SPRING_DATASOURCE_PASSWORD=apppw \
-  taskboard-api:1.0.0        # 注意：沒有 -p
+  survey-api:1.0.0        # 注意：沒有 -p
 
-docker run -d --network taskboard-net -p 8080:80 --name taskboard-web \
-  taskboard-web:1.0.0        # 整套只有這一個對外 port
+docker run -d --network survey-net -p 8080:80 --name survey-web \
+  survey-web:1.0.0        # 整套只有這一個對外 port
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>除錯順序：</b> 前端按下去沒反應時 → 先 <code>docker logs taskboard-web</code> 看 nginx 有沒有收到 <code>/api/</code> 請求 → 再 <code>docker logs taskboard-api</code> 看後端有沒有收到轉發。從外往內一層一層看。
+💡 <b>除錯順序：</b> 前端按下去沒反應時 → 先 <code>docker logs survey-web</code> 看 nginx 有沒有收到 <code>/api/</code> 請求 → 再 <code>docker logs survey-api</code> 看後端有沒有收到轉發。從外往內一層一層看。
 </div>
 
 <!--
-重點在於 taskboard-api 這次完全沒有 -p。它只服務同一個網路裡的 nginx，不需要曝露給主機外部。實務上資料庫跟內部 API 都是這樣處理，除非本機除錯需要才臨時開。
+重點在於 survey-api 這次完全沒有 -p。它只服務同一個網路裡的 nginx，不需要曝露給主機外部。實務上資料庫跟內部 API 都是這樣處理，除非本機除錯需要才臨時開。
 
 ⚠️ 易錯點：如果同學順手幫 db 加了 -p 3306:3306，功能上不會壞，但等於把資料庫曝露在主機網路上，是不必要的風險。
 

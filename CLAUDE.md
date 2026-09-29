@@ -61,23 +61,23 @@ routeAlias: ch01
 | 7 | ch07-volume.md | Volume 資料持久化 |
 | 8 | ch08-deploy.md | 部署實戰 |
 
-## 貫穿專案：TaskBoard（所有範例 / 練習 / 實作的統一情境）
+## 貫穿專案：動態問卷系統（所有範例 / 練習 / 實作的統一情境）
 
-學生先修：Spring Boot (Gradle) / Angular / MySQL。八章的範例與練習一律套用同一個
-TaskBoard 專案，章節之間有連續性 — Ch1 建立的東西 Ch8 還在用。
+學生先修：Spring Boot (Gradle) / Angular / MySQL，並且做完「動態問卷系統」（規格見 `SURVEY-SPEC.md`，各 repo 內容一致，修改時要同步）。八章的範例與練習一律套用同一個
+動態問卷系統，章節之間有連續性 — Ch1 建立的東西 Ch8 還在用。
 
-專案結構：
+專案結構（各部分的完成版都在其他 repo 的 `reference/`，見下方「參考答案」）：
 
 ```
-taskboard/
-├── taskboard-api/          # Spring Boot 3.5 + Gradle (Groovy DSL), Java 21
-│   ├── build.gradle
+survey/
+├── survey-api/          # Spring Boot 4.1.1 + Gradle (Groovy DSL), Java 21 = slidev-springboot/reference/dynamic-survey
+│   ├── build.gradle     #   bootJar 固定檔名 survey-api.jar；含 actuator（/actuator/health）
 │   ├── gradlew / gradle/wrapper/
-│   └── src/main/java/com/example/taskboard/
-├── taskboard-web/          # Angular 20，build 後用 nginx 靜態服務
-│   ├── package.json
+│   └── src/main/java/com/example/survey/
+├── survey-web/          # Angular 21，build 後用 nginx 靜態服務 = slidev-angular/reference/survey-web
+│   ├── package.json / .npmrc（legacy-peer-deps）
 │   └── src/
-├── db/init.sql             # 建表 SQL
+├── db/init.sql          # 建表 + 範例資料（= slidev-mysql 的 schema.sql + seed.sql + ch45-refresh-tokens.sql）
 └── docker-compose.yml
 ```
 
@@ -85,26 +85,28 @@ taskboard/
 
 | 項目 | 值 |
 | ---- | -- |
-| Image | `taskboard-api:1.0.0`、`taskboard-web:1.0.0`、`mysql:8.4` |
-| Container | `taskboard-api`、`taskboard-web`、`taskboard-db` |
+| Image | `survey-api:1.0.0`、`survey-web:1.0.0`、`mysql:8.4` |
+| Container | `survey-api`、`survey-web`、`survey-db` |
 | Compose service | `api`、`web`、`db` |
-| Network | `taskboard-net`（custom bridge） |
-| Volume | `taskboard-db-data`（MySQL 資料）、`taskboard-api-logs` |
+| Network | `survey-net`（custom bridge） |
+| Volume | `survey-db-data`（MySQL 資料）、`survey-api-logs`（`docker run` 時的名稱；Compose 內叫 `db-data`、`api-logs`，實際名稱會加專案名前綴，如 `survey_db-data`） |
 | Port 映射 | web `8080:80`、api `8081:8080`、db `3307:3306` |
-| DB | database `taskboard` / user `appuser` / password `apppw` |
-| 連線字串 | `jdbc:mysql://taskboard-db:3306/taskboard`（Compose 內用 `jdbc:mysql://db:3306/taskboard`） |
+| DB | database `dynamic_survey` / user `appuser` / password `apppw`（root 密碼 `rootpw`） |
+| 連線字串 | `jdbc:mysql://survey-db:3306/dynamic_survey`（Compose 內用 `jdbc:mysql://db:3306/dynamic_survey`） |
 | Health | API `GET /actuator/health`、web `GET /` |
+| 時區 | API 容器要設 `TZ=Asia/Taipei`（問卷狀態用 `LocalDate.now()` 判斷；容器預設是 UTC，凌晨 0～8 點會差一天） |
+| 瀏覽器入口 | `http://localhost:8080`（nginx，`/api` 反向代理到 API；前端 production build 用同源的 `/api`，不需要 CORS） |
 | Registry | Docker Hub 帳號示範用 `myaccount` |
 
-基礎 Image：build 用 `gradle:8.10-jdk21`、`node:20-alpine`；runtime 用
+基礎 Image：build 用 `gradle:8.14-jdk21`、`node:22-alpine`；runtime 用
 `eclipse-temurin:21-jre-alpine`、`nginx:1.27-alpine`。
 
 各章在專案中的切入點：
 
 | Ch | 專案情境 |
 | -- | ------- |
-| 1 | 用 `docker run` 跑起 `taskboard-db`，理解 Client/Daemon/Registry 流程 |
-| 2 | pull 基礎 image、對 `taskboard-api` 打 tag、push 到 registry |
+| 1 | 用 `docker run` 跑起 `survey-db`，理解 Client/Daemon/Registry 流程 |
+| 2 | pull 基礎 image、對 `survey-api` 打 tag、push 到 registry |
 | 3 | 三個容器的生命週期、`exec` 進 MySQL 查資料、看 Spring Boot logs |
 | 4 | 寫 API 的 Gradle multi-stage Dockerfile、web 的 node→nginx multi-stage |
 | 5 | 用 Compose 一次拉起 db + api + web，`depends_on` / healthcheck |
@@ -120,3 +122,9 @@ taskboard/
 - Progressive reveal: `v-click` / `v-clicks`
 - Custom styles: inline in frontmatter `style:` block
 - Tailwind utility classes work directly in slide markdown
+
+## 參考答案與驗證
+
+- **`reference/survey/`**：Dockerfile（API、Web）、`nginx.conf`、`docker-compose.yml`、`db/init.sql`，已用真的 Docker 建置與 Playwright 端對端測試驗證過。**投影片裡的 Dockerfile、compose、nginx 設定必須取自這裡**；改題目時先在這裡跑過再改投影片
+- nginx 反向代理要寫 `proxy_set_header Host $http_host;`（含 port）。寫成 `$host` 會讓 Spring 覺得 `Origin: http://localhost:8080` 與 Host 不同而回 403（CORS）
+- API 容器要用非 root 使用者時，`/app/logs` 要在 image 裡先建好並 `chown`，named volume 掛上去才有寫入權限

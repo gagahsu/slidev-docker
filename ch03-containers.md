@@ -140,25 +140,25 @@ docker run hello-world
 
 # docker run — 範例
 
-把 TaskBoard 的三個服務逐一啟動：
+把動態問卷系統的三個服務逐一啟動：
 
 ```bash
 # 1. 資料庫：帶環境變數初始化 database 與帳號
-docker run -d --name taskboard-db -p 3307:3306 \
+docker run -d --name survey-db -p 3307:3306 \
   -e MYSQL_ROOT_PASSWORD=rootpw \
-  -e MYSQL_DATABASE=taskboard \
+  -e MYSQL_DATABASE=dynamic_survey \
   -e MYSQL_USER=appuser -e MYSQL_PASSWORD=apppw \
   mysql:8.4
 
 # 2. 後端：用環境變數覆蓋 Spring Boot 的資料庫連線設定
-docker run -d --name taskboard-api -p 8081:8080 \
-  -e SPRING_DATASOURCE_URL=jdbc:mysql://host.docker.internal:3307/taskboard \
+docker run -d --name survey-api -p 8081:8080 \
+  -e SPRING_DATASOURCE_URL=jdbc:mysql://host.docker.internal:3307/dynamic_survey \
   -e SPRING_DATASOURCE_USERNAME=appuser \
   -e SPRING_DATASOURCE_PASSWORD=apppw \
-  taskboard-api:1.0.0
+  survey-api:1.0.0
 
 # 3. 前端：Angular 打包後由 nginx 服務
-docker run -d --name taskboard-web -p 8080:80 taskboard-web:1.0.0
+docker run -d --name survey-web -p 8080:80 survey-web:1.0.0
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
@@ -166,13 +166,13 @@ docker run -d --name taskboard-web -p 8080:80 taskboard-web:1.0.0
 </div>
 
 <!--
-這頁把 TaskBoard 整套用最原始的方式跑起來，之後第五章我們會知道這三行可以濃縮成一個 docker compose up。
+這頁把動態問卷系統整套用最原始的方式跑起來，之後第五章我們會知道這三行可以濃縮成一個 docker compose up。
 
-第一行是資料庫。MySQL 官方 Image 支援四個初始化環境變數，MYSQL_DATABASE 會幫我們建好空的 taskboard 資料庫，MYSQL_USER 跟 MYSQL_PASSWORD 會建一個非 root 的應用帳號，並直接授權它操作那個資料庫——這正好對應大家在 application.yml 裡設定的那組帳密。
+第一行是資料庫。MySQL 官方 Image 支援四個初始化環境變數，MYSQL_DATABASE 會幫我們建好空的 dynamic_survey 資料庫，MYSQL_USER 跟 MYSQL_PASSWORD 會建一個非 root 的應用帳號，並直接授權它操作那個資料庫——這正好對應大家在 application.properties 裡設定的那組帳密。
 
 第二行是後端。請大家特別注意這個觀念：Spring Boot 的設定可以用環境變數覆蓋，規則是把 properties 的點換成底線、全部大寫，所以 `spring.datasource.url` 就變成 `SPRING_DATASOURCE_URL`。這是容器化 Spring Boot 最關鍵的一招——同一個 Image，靠不同環境變數就能連到開發、測試、正式三套不同的資料庫，完全不用改程式、不用重 build。
 
-⚠️ 這裡的 `host.docker.internal` 是暫時的權宜寫法。容器裡的 localhost 指的是「容器自己」，不是我們的電腦，所以 API 容器不能寫 localhost:3307。host.docker.internal 是 Docker Desktop 提供的特殊網域名稱，代表「跑 Docker 的這台主機」。這個寫法很醜，第六章我們會用自訂網路，讓 API 直接寫 `jdbc:mysql://taskboard-db:3306/taskboard` 就好。
+⚠️ 這裡的 `host.docker.internal` 是暫時的權宜寫法。容器裡的 localhost 指的是「容器自己」，不是我們的電腦，所以 API 容器不能寫 localhost:3307。host.docker.internal 是 Docker Desktop 提供的特殊網域名稱，代表「跑 Docker 的這台主機」。這個寫法很醜，第六章我們會用自訂網路，讓 API 直接寫 `jdbc:mysql://survey-db:3306/dynamic_survey` 就好。
 
 ⚠️ 易錯點：如果沒有加 -d，終端機會被「卡住」，因為容器是前景執行、佔用了目前的終端機視窗，下一部分會細講。
 
@@ -211,21 +211,21 @@ docker run -d --name taskboard-web -p 8080:80 taskboard-web:1.0.0
 docker ps
 
 # NAMES            IMAGE                STATUS         PORTS
-# taskboard-web    taskboard-web:1.0.0  Up 3 minutes   0.0.0.0:8080->80/tcp
-# taskboard-api    taskboard-api:1.0.0  Up 3 minutes   0.0.0.0:8081->8080/tcp
-# taskboard-db     mysql:8.4            Up 4 minutes   0.0.0.0:3307->3306/tcp
+# survey-web    survey-web:1.0.0  Up 3 minutes   0.0.0.0:8080->80/tcp
+# survey-api    survey-api:1.0.0  Up 3 minutes   0.0.0.0:8081->8080/tcp
+# survey-db     mysql:8.4            Up 4 minutes   0.0.0.0:3307->3306/tcp
 
 # 連已經停止的容器也一起列出來
 docker ps -a
 
 # 下班了，把後端停掉（用名稱或 ID 都可以）
-docker stop taskboard-api
+docker stop survey-api
 
 # 隔天上班重新啟動，設定與資料都還在
-docker start taskboard-api
+docker start survey-api
 
 # 改完 Dockerfile 要換新 Image，先停再刪掉舊容器
-docker stop taskboard-api && docker rm taskboard-api
+docker stop survey-api && docker rm survey-api
 ```
 
 <!--
@@ -290,10 +290,10 @@ class: flex flex-col justify-center items-center text-center
 
 ```bash
 # 前景：Spring Boot 的啟動 log 直接洗在終端機上，Ctrl+C 會把服務停掉
-docker run taskboard-api:1.0.0
+docker run survey-api:1.0.0
 
 # 背景：只印出 Container ID，終端機馬上還給你
-docker run -d --name taskboard-api taskboard-api:1.0.0
+docker run -d --name survey-api survey-api:1.0.0
 ```
 
 <!--
@@ -333,13 +333,13 @@ Spring Boot 的例子最好懂：不加 -d 的時候，那個 Spring 的 ASCII b
 
 ```bash
 # 互動模式：開一個「用完就丟」的容器，測試 Gradle 版本對不對
-docker run -it --rm gradle:8.10-jdk21 bash
+docker run -it --rm gradle:8.14-jdk21 bash
 
-# 背景模式：長駐執行 TaskBoard 後端服務
-docker run -d --name taskboard-api -p 8081:8080 taskboard-api:1.0.0
+# 背景模式：長駐執行動態問卷系統後端服務
+docker run -d --name survey-api -p 8081:8080 survey-api:1.0.0
 
 # 用 exec 進入「已經在跑」的容器，而不是新建一個
-docker exec -it taskboard-api sh
+docker exec -it survey-api sh
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
@@ -347,13 +347,13 @@ docker exec -it taskboard-api sh
 </div>
 
 <!--
-第一行示範互動模式的實際用途：我想確認 gradle:8.10-jdk21 這個 Image 裡的 Java 到底是不是 21、Gradle 指令能不能跑，就開一個臨時容器進去打 `java -version`、`gradle -v`，看完 exit 離開，加了 --rm 容器自動消失，不留垃圾。這在第四章寫 Dockerfile 之前很好用——先進去確認環境，再把確認過的指令寫進 Dockerfile。
+第一行示範互動模式的實際用途：我想確認 gradle:8.14-jdk21 這個 Image 裡的 Java 到底是不是 21、Gradle 指令能不能跑，就開一個臨時容器進去打 `java -version`、`gradle -v`，看完 exit 離開，加了 --rm 容器自動消失，不留垃圾。這在第四章寫 Dockerfile 之前很好用——先進去確認環境，再把確認過的指令寫進 Dockerfile。
 
 第二行是背景長駐服務，我們平常部署的 API、資料庫幾乎都是這種模式。
 
 第三行帶到下一個重點：exec，它不是新建容器，而是「溜進」一個已經在運作中的容器，下一頁細講。
 
-⚠️ 易錯點：第一行的容器一旦 exit 離開 bash，容器就會跟著停止，因為 bash 是這個容器的主行程。但第二行的 taskboard-api 不一樣，它的主行程是 java，所以 exec 進去再離開，服務照常運作。
+⚠️ 易錯點：第一行的容器一旦 exit 離開 bash，容器就會跟著停止，因為 bash 是這個容器的主行程。但第二行的 survey-api 不一樣，它的主行程是 java，所以 exec 進去再離開，服務照常運作。
 
 預期結果：第一行會直接進入容器內的 shell 提示字元。
 -->
@@ -366,13 +366,13 @@ docker exec -it taskboard-api sh
 
 ```bash
 # 進到資料庫容器裡，直接用 mysql client 查資料
-docker exec -it taskboard-db mysql -uappuser -papppw taskboard
+docker exec -it survey-db mysql -uappuser -papppw dynamic_survey
 ```
 
 <!--
 大家平常除錯的時候，最常用的就是這招：容器已經跑起來了，想進去看看設定檔對不對、log 在哪裡，就用 exec 進去看。
 
-這個範例特別實用：以前我們要用 MySQL Workbench 才能查資料，現在容器裡本來就附了 mysql 這個命令列 client，一行指令就進到 SQL 提示字元，可以直接 `select * from task;` 確認 Spring Boot 到底有沒有把資料寫進去。這是除錯 API 時最快的驗證方式。
+這個範例特別實用：以前我們要用 MySQL Workbench 才能查資料，現在容器裡本來就附了 mysql 這個命令列 client，一行指令就進到 SQL 提示字元，可以直接 `select * from survey_responses;` 確認 Spring Boot 到底有沒有把作答寫進去。這是除錯 API 時最快的驗證方式。
 
 ⚠️ 易錯點：docker exec 執行的指令必須是「可執行檔」，不能直接丟一串用 && 串起來的指令。例如 docker exec -it my_container "echo a && echo b" 是錯的，要寫成 docker exec -it my_container sh -c "echo a && echo b" 才對。
 
@@ -405,23 +405,23 @@ docker exec -it taskboard-db mysql -uappuser -papppw taskboard
 # docker exec — 範例
 
 ```bash
-# 進資料庫容器下 SQL：確認 Spring Boot 的 JPA 有沒有幫我們建表
-docker exec -it taskboard-db mysql -uappuser -papppw taskboard -e "show tables;"
+# 進資料庫容器下 SQL：確認資料庫裡有沒有我們要的表
+docker exec -it survey-db mysql -uappuser -papppw dynamic_survey -e "show tables;"
 
 # 進後端容器的 shell，看看 jar 檔到底放在哪
-docker exec -it taskboard-api sh
+docker exec -it survey-api sh
 
 # 檢查容器實際吃到的環境變數（除錯資料庫連線必看）
-docker exec taskboard-api env | grep SPRING
+docker exec survey-api env | grep SPRING
 
 # 指定工作目錄執行指令：看 Angular 打包出來的靜態檔
-docker exec -w /usr/share/nginx/html taskboard-web ls
+docker exec -w /usr/share/nginx/html survey-web ls
 ```
 
 <!--
-這四行是除錯 TaskBoard 時的標準工具組，大家一定會用到。
+這四行是除錯動態問卷系統時的標準工具組，大家一定會用到。
 
-第一行：JPA 設定 ddl-auto 之後，最快確認「表到底建起來沒」的方法。用 -e 帶 SQL 進去，不用進互動模式，很適合寫在腳本裡。
+第一行：最快確認「表到底建起來沒」的方法（這個專案的表由 init.sql 建立，Hibernate 只用 validate 檢查對不對得上）。用 -e 帶 SQL 進去，不用進互動模式，很適合寫在腳本裡。
 
 第二行：進後端容器逛一圈，確認 jar 檔的路徑跟我們 Dockerfile 寫的一不一樣。
 
@@ -446,7 +446,7 @@ docker exec -w /usr/share/nginx/html taskboard-web ls
 
 ```bash
 # 多重指令一定要包在 sh -c "..." 裡面
-docker exec -it taskboard-api sh -c "ls /app && cat /app/application.yml"
+docker exec -it survey-api sh -c "ls /app && cat /app/application.yml"
 ```
 
 <!--
@@ -454,7 +454,7 @@ docker exec -it taskboard-api sh -c "ls /app && cat /app/application.yml"
 
 用生活比喻來說：run -it 像是「你就是店長，你一走整間店就打烊了」；exec -it 則是「你只是臨時進去巡店的訪客，你走了店還是照常營業」。
 
-套到 TaskBoard：exec 進 taskboard-api 打 exit，Spring Boot 的 java 行程還在跑，API 完全不受影響，因為我們只是開了一個額外的 shell 行程。
+套到動態問卷系統：exec 進 survey-api 打 exit，Spring Boot 的 java 行程還在跑，API 完全不受影響，因為我們只是開了一個額外的 shell 行程。
 
 ⚠️ 易錯點：串接指令一定要包在 sh -c "..." 裡面，直接丟多重指令會報錯，這是官方文件特別強調的一點。
 
@@ -531,18 +531,18 @@ class: flex flex-col justify-center items-center text-center
 
 ```bash
 # 建立並啟動
-docker run -d --name taskboard-api -p 8081:8080 taskboard-api:1.0.0
+docker run -d --name survey-api -p 8081:8080 survey-api:1.0.0
 
 # 暫停與恢復（凍結行程，記憶體內容保留）
-docker pause taskboard-api
-docker unpause taskboard-api
+docker pause survey-api
+docker unpause survey-api
 
 # 停止與重新啟動（Spring Boot 會完整重跑一次啟動流程）
-docker stop taskboard-api
-docker start taskboard-api
+docker stop survey-api
+docker start survey-api
 
 # 查看目前狀態
-docker ps -a --filter name=taskboard
+docker ps -a --filter name=survey
 ```
 
 <!--
@@ -552,7 +552,7 @@ docker ps -a --filter name=taskboard
 
 ⚠️ 易錯點：pause 期間容器完全凍結，如果這時候有使用者正在打這個服務的 API，請求會卡住沒有回應，不是報錯，是真的沒反應，正式環境要謹慎使用。
 
-預期結果：最後一行的 docker ps -a 會顯示 taskboard-api 目前的實際狀態。
+預期結果：最後一行的 docker ps -a 會顯示 survey-api 目前的實際狀態。
 -->
 
 ---
@@ -562,13 +562,13 @@ docker ps -a --filter name=taskboard
 「`docker logs` 會把容器的標準輸出（STDOUT）跟標準錯誤（STDERR）印出來，這是除錯的第一道防線。」
 
 ```bash
-docker logs taskboard-api
+docker logs survey-api
 ```
 
 <!--
 這是我們平常除錯最先做的一件事：服務跑不起來、連不上，第一步永遠是先看 log，而不是急著重開容器。
 
-對 Spring Boot 來說這頁特別重要。API 容器 `docker ps` 顯示 Exited，原因幾乎都寫在 log 裡：可能是 `Communications link failure`（連不到資料庫）、可能是 `Port 8080 was already in use`、也可能是 `Table 'taskboard.task' doesn't exist`。不看 log 就重開，重開一百次還是同一個錯。
+對 Spring Boot 來說這頁特別重要。API 容器 `docker ps` 顯示 Exited，原因幾乎都寫在 log 裡：可能是 `Communications link failure`（連不到資料庫）、可能是 `Port 8080 was already in use`、也可能是 `Schema-validation: missing table [surveys]`（Hibernate 的 validate 發現資料庫沒有建表，這個專案的表要靠 `init.sql` 匯入）。不看 log 就重開，重開一百次還是同一個錯。
 
 ⚠️ 易錯點：docker logs 只能看到容器「輸出到 STDOUT/STDERR」的內容。這也是為什麼容器化的 Spring Boot 專案，logback 通常只設定 console appender，不寫檔案——寫進容器裡的檔案，容器一刪就沒了，還不如直接印到標準輸出讓 Docker 收。
 
@@ -602,16 +602,16 @@ docker logs taskboard-api
 
 ```bash
 # 即時追蹤 log（最常用於除錯：一邊按前端，一邊看 API 有沒有收到請求）
-docker logs -f taskboard-api
+docker logs -f survey-api
 
 # 只看最後 50 行，並加上時間戳記
-docker logs -n 50 -t taskboard-api
+docker logs -n 50 -t survey-api
 
 # 只看最近 30 分鐘的 log
-docker logs --since 30m taskboard-api
+docker logs --since 30m survey-api
 
 # 直接撈出錯誤：Spring Boot 的例外堆疊都在這
-docker logs taskboard-api 2>&1 | grep -i "exception\|error"
+docker logs survey-api 2>&1 | grep -i "exception\|error"
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
@@ -619,7 +619,7 @@ docker logs taskboard-api 2>&1 | grep -i "exception\|error"
 </div>
 
 <!--
-第一行是我們日常除錯最常打的指令。實務上的用法是：開一個終端機視窗掛著 `docker logs -f taskboard-api`，然後去瀏覽器操作 Angular 前端，新增一筆任務，回頭看 log 有沒有跳出 Hibernate 的 insert 語句——這樣就能確定請求到底有沒有打到後端、有沒有寫進資料庫。
+第一行是我們日常除錯最常打的指令。實務上的用法是：開一個終端機視窗掛著 `docker logs -f survey-api`，然後去瀏覽器操作 Angular 前端，新增一筆任務，回頭看 log 有沒有跳出 Hibernate 的 insert 語句——這樣就能確定請求到底有沒有打到後端、有沒有寫進資料庫。
 
 第二、三行則是回顧型的查詢，服務已經跑了很久，我們只想看最近發生了什麼事，不想從頭滑到尾。
 
@@ -639,7 +639,7 @@ docker logs taskboard-api 2>&1 | grep -i "exception\|error"
 </div>
 
 ```bash
-docker ps -a && docker logs --tail 20 taskboard-api
+docker ps -a && docker logs --tail 20 survey-api
 ```
 
 <!--
@@ -654,13 +654,13 @@ docker ps -a && docker logs --tail 20 taskboard-api
 layout: default
 ---
 
-# 練習 1：啟動 TaskBoard 資料庫並巡查
+# 練習 1：啟動動態問卷系統資料庫並巡查
 ### 任務說明
 
-我們要把 TaskBoard 的資料庫容器完整操作一遍：
+我們要把動態問卷系統的資料庫容器完整操作一遍：
 
-1. 用背景模式啟動 `mysql:8.4`，命名為 `taskboard-db`，主機 `3307` 映射到容器 `3306`，並帶入四個環境變數：
-   `MYSQL_ROOT_PASSWORD=rootpw`、`MYSQL_DATABASE=taskboard`、`MYSQL_USER=appuser`、`MYSQL_PASSWORD=apppw`
+1. 用背景模式啟動 `mysql:8.4`，命名為 `survey-db`，主機 `3307` 映射到容器 `3306`，並帶入四個環境變數：
+   `MYSQL_ROOT_PASSWORD=rootpw`、`MYSQL_DATABASE=dynamic_survey`、`MYSQL_USER=appuser`、`MYSQL_PASSWORD=apppw`
 2. 確認容器有成功在背景執行，並記下 PORTS 欄位顯示的內容
 3. 查看這個容器的 log，找到 `ready for connections` 這句話（MySQL 要跑幾秒初始化，太快查會看不到）
 4. 停止容器，並確認狀態變成 Exited
@@ -683,21 +683,21 @@ layout: default
 
 1. 啟動：
    ```bash
-   docker run -d --name taskboard-db -p 3307:3306 \
-     -e MYSQL_ROOT_PASSWORD=rootpw -e MYSQL_DATABASE=taskboard \
+   docker run -d --name survey-db -p 3307:3306 \
+     -e MYSQL_ROOT_PASSWORD=rootpw -e MYSQL_DATABASE=dynamic_survey \
      -e MYSQL_USER=appuser -e MYSQL_PASSWORD=apppw mysql:8.4
    ```
 2. 確認執行中：`docker ps`（PORTS 欄應顯示 `0.0.0.0:3307->3306/tcp`）
-3. 查看 log：`docker logs taskboard-db | grep "ready for connections"`
-4. 停止並確認：`docker stop taskboard-db && docker ps -a`
-5. 重新啟動：`docker start taskboard-db`
+3. 查看 log：`docker logs survey-db | grep "ready for connections"`
+4. 停止並確認：`docker stop survey-db && docker ps -a`
+5. 重新啟動：`docker start survey-db`
 
 <!--
 提示都是 Part 1 教過的原班指令，只是要大家自己組出完整流程。
 
 ⚠️ 易錯點：docker ps 預設只顯示執行中的容器，要確認「已停止」的狀態記得加 -a。另外第 3 步如果 grep 不到，先等個十秒再試一次，不是指令打錯。
 
-預期結果：最後 docker ps 能看到 taskboard-db 回到 Up 狀態。請保留這個容器，練習 2 還要用。
+預期結果：最後 docker ps 能看到 survey-db 回到 Up 狀態。請保留這個容器，練習 2 還要用。
 -->
 
 ---
@@ -707,23 +707,23 @@ layout: default
 # 練習 2：進資料庫容器除錯
 ### 任務說明
 
-延續練習 1 的 `taskboard-db` 容器：
+延續練習 1 的 `survey-db` 容器：
 
-1. 用互動模式進入容器，執行 `mysql -uappuser -papppw taskboard`，再下 `show tables;` 看看現在有沒有表
-2. 在 SQL 提示字元裡手動建一張表並塞一筆資料（模擬 Spring Boot 的 JPA 之後會做的事）：
+1. 用互動模式進入容器，執行 `mysql -uappuser -papppw dynamic_survey`，再下 `show tables;` 看看現在有沒有表
+2. 在 SQL 提示字元裡手動建一張簡化的問卷表並塞一筆資料（模擬應用程式之後會做的事，表名叫 `demo_surveys`，不要跟正式的 `surveys` 混淆）：
    ```sql
-   CREATE TABLE task (id BIGINT PRIMARY KEY AUTO_INCREMENT,
-                      title VARCHAR(100), done BOOLEAN DEFAULT FALSE);
-   INSERT INTO task (title) VALUES ('學會 docker exec');
+   CREATE TABLE demo_surveys (id INT PRIMARY KEY AUTO_INCREMENT,
+                              title VARCHAR(100), published BOOLEAN DEFAULT FALSE);
+   INSERT INTO demo_surveys (title) VALUES ('學會 docker exec');
    ```
 3. 離開 SQL，用 `docker exec` 搭配 `-e` 參數，不進互動模式直接查出這筆資料
 4. 用 `docker logs` 只看最近 10 分鐘的 log
-5. **想一想（先別動手）**：如果現在 `docker rm -f taskboard-db` 再重新 `docker run`，剛剛那筆資料還在嗎？
+5. **想一想（先別動手）**：如果現在 `docker rm -f survey-db` 再重新 `docker run`，剛剛那筆資料還在嗎？
 
 <!--
 這一題把 Part 2 的 exec 跟 Part 3 的 logs 串在一起，而且情境完全是真實除錯會做的事。
 
-第 3 步要大家自己組出 `docker exec taskboard-db mysql -uappuser -papppw taskboard -e "select * from task;"` 這種寫法，這是寫在腳本裡最常用的形式。
+第 3 步要大家自己組出 `docker exec survey-db mysql -uappuser -papppw dynamic_survey -e "select * from demo_surveys;"` 這種寫法，這是寫在腳本裡最常用的形式。
 
 第 5 步是刻意留的伏筆，答案是「資料會全部不見」，因為容器的可寫層跟容器同生共死。這個痛點就是第七章 Volume 要解決的問題，這裡先讓大家在腦中留一個問號，不要真的刪掉容器。
 
@@ -739,14 +739,14 @@ layout: default
 
 ```bash
 # 1-2. 進互動 SQL 提示字元，貼上建表與 insert
-docker exec -it taskboard-db mysql -uappuser -papppw taskboard
+docker exec -it survey-db mysql -uappuser -papppw dynamic_survey
 
 # 3. 不進互動模式，直接下 SQL 查資料
-docker exec taskboard-db mysql -uappuser -papppw taskboard \
-  -e "select * from task;"
+docker exec survey-db mysql -uappuser -papppw dynamic_survey \
+  -e "select * from demo_surveys;"
 
 # 4. 篩選時間查 log
-docker logs --since 10m taskboard-db
+docker logs --since 10m survey-db
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
@@ -756,11 +756,11 @@ docker logs --since 10m taskboard-db
 <!--
 這題重點是分清楚 exec -it（互動）跟 exec 直接帶指令的差別，以及第 5 題那個伏筆。
 
-第 5 題請大家一定要有感：這就是為什麼「容器不能拿來存資料」這句話會被講一百次。我們現在手上的 taskboard-db 是很脆弱的，同事誤下一個 docker rm，開發資料全部歸零。第七章我們會用一行 -v 參數把這個問題解決掉。
+第 5 題請大家一定要有感：這就是為什麼「容器不能拿來存資料」這句話會被講一百次。我們現在手上的 survey-db 是很脆弱的，同事誤下一個 docker rm，開發資料全部歸零。第七章我們會用一行 -v 參數把這個問題解決掉。
 
 ⚠️ 易錯點：如果直接對執行中的容器下 docker rm，Docker 會拒絕，除非加 -f。
 
-預期結果：第 3 步應該印出一張表格，看到剛剛 insert 的那筆「學會 docker exec」。請不要刪掉 taskboard-db 容器，後面幾章還會用到。
+預期結果：第 3 步應該印出一張表格，看到剛剛 insert 的那筆「學會 docker exec」。請不要刪掉 survey-db 容器，後面幾章還會用到。
 -->
 
 ---

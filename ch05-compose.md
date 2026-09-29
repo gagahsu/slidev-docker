@@ -76,7 +76,7 @@ class: flex flex-col justify-center items-center text-center
 
 # 為什麼需要 Docker Compose？
 
-- TaskBoard 光是跑起來就要三個容器：`taskboard-web`、`taskboard-api`、`taskboard-db`，而且彼此要能互相溝通
+- 動態問卷系統光是跑起來就要三個容器：`survey-web`、`survey-api`、`survey-db`，而且彼此要能互相溝通
 - 第三章我們用 `docker run` 逐一啟動，那三行指令加起來十幾個參數，還得記得先起資料庫、再起 API，新同事第一天就要照抄一整頁 README
 - Docker Compose：「**define and manage multi-container apps in one YAML file, streamlining orchestration**」——用一份 YAML 檔案定義並管理多容器應用
 - 比喻：Compose 如同「**樂團總譜**」，一次定義每個容器（樂手）用什麼映像檔（樂器）、跟誰同網路（合奏），再用 `docker compose` 指令統一啟動
@@ -134,18 +134,18 @@ class: flex flex-col justify-center items-center text-center
 ```yaml
 services:
   web:
-    image: taskboard-web:1.0.0
+    image: survey-web:1.0.0
     ports:
       - "8080:80"
   api:
-    image: taskboard-api:1.0.0
+    image: survey-api:1.0.0
     ports:
       - "8081:8080"
   db:
     image: mysql:8.4
     environment:
       MYSQL_ROOT_PASSWORD: rootpw
-      MYSQL_DATABASE: taskboard
+      MYSQL_DATABASE: dynamic_survey
 
 networks:
   default:
@@ -158,7 +158,7 @@ volumes:
 <!--
 這頁給一個最小可跑的骨架，對照剛剛講的三大區塊：三個 service、一個 network、一個 volume。
 
-這份還很陽春，API 還沒有連線設定、資料也還沒真的持久化，我們第三部分會把它補完整。先讓大家看到 TaskBoard 三個服務並排在同一份檔案裡的樣子。
+這份還很陽春，API 還沒有連線設定、資料也還沒真的持久化，我們第三部分會把它補完整。先讓大家看到動態問卷系統三個服務並排在同一份檔案裡的樣子。
 
 ⚠️ 易錯點：YAML 對縮排非常敏感，縮排一定要用空格不能用 tab，層級錯一格整份檔案就解析失敗。
 -->
@@ -222,7 +222,7 @@ docker compose logs -f
 docker compose logs --tail 50 api
 
 # 進資料庫容器下 SQL（不用管容器全名叫什麼）
-docker compose exec db mysql -uappuser -papppw taskboard
+docker compose exec db mysql -uappuser -papppw dynamic_survey
 
 # 只重新建置並重啟 api（改完 Java 之後最常打的一行）
 docker compose up -d --build api
@@ -239,7 +239,7 @@ docker compose down -v
 
 請大家特別記住 `docker compose up -d --build api` 這一行，這是容器化開發的日常節奏：改完 Controller、存檔、打這一行，Compose 只會重 build 跟重啟 api 這個服務，資料庫跟前端完全不動，也不會斷線。比起 `down` 再 `up` 整套快非常多。
 
-`docker compose exec db mysql ...` 也很好用，注意它接的是「服務名稱 db」，不是容器全名。Compose 會自動幫容器加上專案名稱前綴（例如 taskboard-db-1），用 docker exec 就得打全名，用 compose exec 打 db 就好。
+`docker compose exec db mysql ...` 也很好用，注意它接的是「服務名稱 db」，不是容器全名。Compose 會自動幫容器加上專案名稱前綴（例如 survey-db-1），用 docker exec 就得打全名，用 compose exec 打 db 就好。
 
 易錯點 ⚠️：docker compose down 預設不會刪除 volume，資料庫的資料還在，這是刻意設計避免誤刪資料；真的要清空重來才加 -v。生活比喻：down 就像「謝幕」，樂手（容器）先下台，但樂器（volume）還放在後台沒被丟掉，除非我們明確說要清場（-v）。
 -->
@@ -278,7 +278,7 @@ class: flex flex-col justify-center items-center text-center
 
 「**同一個 compose.yaml 裡的所有 service，預設會被放進同一個內部網路，彼此可以用『服務名稱』當作主機名稱互相溝通**」，不需要知道對方的 IP，也不需要額外設定。
 
-例如資料庫 service 命名為 `db`，Spring Boot 的連線字串就直接寫 `jdbc:mysql://db:3306/taskboard`，Compose 內建 DNS 會自動解析成正確的容器 IP。第三章那個難看的 `host.docker.internal:3307` 到這裡終於可以退場了。
+例如資料庫 service 命名為 `db`，Spring Boot 的連線字串就直接寫 `jdbc:mysql://db:3306/dynamic_survey`，Compose 內建 DNS 會自動解析成正確的容器 IP。第三章那個難看的 `host.docker.internal:3307` 到這裡終於可以退場了。
 
 | 概念 | 說明 |
 | --- | --- |
@@ -293,23 +293,23 @@ class: flex flex-col justify-center items-center text-center
 
 ---
 
-# 完整範例：TaskBoard 三層架構
+# 完整範例：動態問卷系統三層架構
 
 ```yaml
 services:
   web:                                   # Angular + nginx
-    build: ./taskboard-web
+    build: ./survey-web
     ports: ["8080:80"]
     depends_on: [api]
 
   api:                                   # Spring Boot
-    build: ./taskboard-api
+    build: ./survey-api
     ports: ["8081:8080"]
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/taskboard
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/dynamic_survey
       SPRING_DATASOURCE_USERNAME: appuser
       SPRING_DATASOURCE_PASSWORD: apppw
-      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      TZ: Asia/Taipei                     # 問卷狀態用今天的日期判斷，容器預設是 UTC
     depends_on:
       db: { condition: service_healthy }  # 等 db 真的能連線再啟動
 
@@ -317,13 +317,14 @@ services:
     image: mysql:8.4
     environment:
       MYSQL_ROOT_PASSWORD: rootpw
-      MYSQL_DATABASE: taskboard
+      MYSQL_DATABASE: dynamic_survey
       MYSQL_USER: appuser
       MYSQL_PASSWORD: apppw
     volumes:
       - db-data:/var/lib/mysql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro   # 第一次啟動自動建表 + 匯入範例資料
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpw"]
       interval: 5s
       retries: 10
 
@@ -332,15 +333,15 @@ volumes:
 ```
 
 <!--
-這份就是 TaskBoard 的正式 compose.yaml，大家之後每天開發都會用它。我們一個服務一個服務看。
+這份就是動態問卷系統的正式 compose.yaml，大家之後每天開發都會用它。我們一個服務一個服務看。
 
-web 用 `build: ./taskboard-web`，代表拿那個目錄的 Dockerfile 現場建置，就是第四章我們寫的那份 multi-stage。對外開 8080。
+web 用 `build: ./survey-web`，代表拿那個目錄的 Dockerfile 現場建置，就是第四章我們寫的那份 multi-stage。對外開 8080。
 
-api 是重點。連線字串直接寫 `jdbc:mysql://db:3306/taskboard`，這裡的 db 就是下面那個 service 的名稱，Compose 的內建 DNS 會解析。而且注意 port 是 3306 不是 3307——3307 是我們映射給「主機」用的，容器之間走內部網路，用的是容器原本的 port。這個觀念第六章會再深入。
+api 是重點。連線字串直接寫 `jdbc:mysql://db:3306/dynamic_survey`，這裡的 db 就是下面那個 service 的名稱，Compose 的內建 DNS 會解析。而且注意 port 是 3306 不是 3307——3307 是我們映射給「主機」用的，容器之間走內部網路，用的是容器原本的 port。這個觀念第六章會再深入。
 
-那些 SPRING_ 開頭的環境變數，就是第三章講過的 Spring Boot 設定覆蓋規則。整份 application.yml 都不用改，換環境只換 compose 檔。
+那些 SPRING_ 開頭的環境變數，就是第三章講過的 Spring Boot 設定覆蓋規則。整份 application.properties 都不用改，換環境只換 compose 檔。另外那行 TZ: Asia/Taipei 很重要：容器預設是 UTC 時區，而問卷的「進行中／已結束」是用今天的日期算出來的，凌晨零點到早上八點（台灣時間）UTC 還是前一天，狀態就會差一天。這種只在特定時段出現的錯，最難除錯。
 
-db 的兩個重點：資料掛到 named volume db-data，容器刪掉重建資料還在（第七章主題）；還有 healthcheck，用 mysqladmin ping 每五秒問一次「你能接受連線了嗎」，最多問十次。
+db 的三個重點：資料掛到 named volume db-data，容器刪掉重建資料還在（第七章主題）；`./db/init.sql` 掛進 `/docker-entrypoint-initdb.d/`，這是 MySQL 官方 Image 的功能——資料目錄第一次是空的時候，會自動執行這個資料夾裡所有的 .sql，六張表與範例資料就是這樣建起來的（我們的 API 用 ddl-auto=validate，只檢查表對不對，不會幫忙建表）；還有 healthcheck，用 mysqladmin ping 每五秒問一次「你能接受連線了嗎」，最多問十次。
 
 然後看 api 的 depends_on 寫法：`condition: service_healthy`。這一行解決了大家在第三章遇到的痛點——API 比資料庫早就緒就會啟動失敗。加上這個條件之後，Compose 會乖乖等到 db 的 healthcheck 通過才啟動 api。這是新版 Compose 才有的寫法，比舊版單純列服務名稱可靠太多。
 -->
@@ -375,12 +376,12 @@ db 的兩個重點：資料掛到 named volume db-data，容器刪掉重建資�
 
 **難度：基礎**
 
-先把 TaskBoard 的資料庫從 `docker run` 搬進 Compose。請寫一份 `compose.yaml`：
+先把動態問卷系統的資料庫從 `docker run` 搬進 Compose。請寫一份 `compose.yaml`：
 
 1. 一個叫 `db` 的服務，使用 `mysql:8.4` 映像檔
 2. 主機 `3307` 對應到容器 `3306`
-3. 帶入四個環境變數：`MYSQL_ROOT_PASSWORD=rootpw`、`MYSQL_DATABASE=taskboard`、`MYSQL_USER=appuser`、`MYSQL_PASSWORD=apppw`
-4. `docker compose up -d` 啟動後，用 `docker compose exec db mysql -uappuser -papppw taskboard` 確認能連進去
+3. 帶入四個環境變數：`MYSQL_ROOT_PASSWORD=rootpw`、`MYSQL_DATABASE=dynamic_survey`、`MYSQL_USER=appuser`、`MYSQL_PASSWORD=apppw`
+4. `docker compose up -d` 啟動後，用 `docker compose exec db mysql -uappuser -papppw dynamic_survey` 確認能連進去
 5. 對照一下：這份 YAML 跟第三章那行又臭又長的 `docker run`，內容其實一模一樣
 
 <!--
@@ -403,7 +404,7 @@ services:
       - "3307:3306"
     environment:
       MYSQL_ROOT_PASSWORD: rootpw
-      MYSQL_DATABASE: taskboard
+      MYSQL_DATABASE: dynamic_survey
       MYSQL_USER: appuser
       MYSQL_PASSWORD: apppw
 ```
@@ -414,7 +415,7 @@ services:
 docker compose up -d
 docker compose ps
 docker compose logs db | grep "ready for connections"
-docker compose exec db mysql -uappuser -papppw taskboard -e "show tables;"
+docker compose exec db mysql -uappuser -papppw dynamic_survey -e "show tables;"
 ```
 
 <!--
@@ -431,21 +432,21 @@ docker compose exec db mysql -uappuser -papppw taskboard -e "show tables;"
 
 **難度：進階**
 
-把 TaskBoard 整套三層架構寫成一份 `compose.yaml`：
+把動態問卷系統整套三層架構寫成一份 `compose.yaml`：
 
-1. `db` 服務：`mysql:8.4`，資料庫 `taskboard`，資料用 named volume `db-data` 掛在 `/var/lib/mysql`
-2. `api` 服務：用 `build: ./taskboard-api` 建置，對外開 `8081:8080`，透過**服務名稱**連線資料庫（不准出現 `localhost` 或 `host.docker.internal`）
-3. `web` 服務：用 `build: ./taskboard-web` 建置，對外開 `8080:80`
+1. `db` 服務：`mysql:8.4`，資料庫 `dynamic_survey`，資料用 named volume `db-data` 掛在 `/var/lib/mysql`，並把 `./db/init.sql` 唯讀掛到 `/docker-entrypoint-initdb.d/init.sql`（第一次啟動自動建表與匯入範例資料）
+2. `api` 服務：用 `build: ./survey-api` 建置，對外開 `8081:8080`，透過**服務名稱**連線資料庫（不准出現 `localhost` 或 `host.docker.internal`）
+3. `web` 服務：用 `build: ./survey-web` 建置，對外開 `8080:80`
 4. 幫 `db` 加上 healthcheck，並讓 `api` 等到 `db` 健康之後才啟動
 5. 驗證：`docker compose logs api` 要看到 Spring Boot 正常啟動、沒有 `Communications link failure`
-6. 最後測試持久化：新增一筆任務 → `docker compose down`（不加 `-v`）→ `up -d` → 資料是否還在？
+6. 最後測試持久化：先把第 1 份問卷的標題改掉（`update surveys set title='Compose 測試' where id=1;`）→ `docker compose down`（不加 `-v`）→ `up -d` → `select title from surveys where id=1;`，標題還是「Compose 測試」嗎？
 
 <!--
 第二題整合本章所有重點：build、多服務、服務名稱連線、healthcheck、volume 持久化。
 
 第 2 點我特別禁止 localhost，因為這是最多人犯的錯：習慣性把 application.yml 的 localhost 照抄進來，然後 API 一直連不上，因為容器裡的 localhost 是容器自己。
 
-第 6 點是留給第七章的伏筆，也是驗收：對照第三章練習 2 那個「容器一刪資料就沒了」的痛點，現在掛了 volume 之後，整套 down 掉再 up 起來，任務資料還在。有掛跟沒掛的差別，做過一次就永遠記得。
+第 6 點是留給第七章的伏筆，也是驗收：對照第三章練習 2 那個「容器一刪資料就沒了」的痛點，現在掛了 volume 之後，整套 down 掉再 up 起來，改過的標題還在。如果沒掛 volume，down 之後再 up 會重新匯入 init.sql，標題就會變回「校園活動調查」。有掛跟沒掛的差別，做過一次就永遠記得。
 -->
 
 ---
@@ -455,28 +456,31 @@ docker compose exec db mysql -uappuser -papppw taskboard -e "show tables;"
 ```yaml
 services:
   web:
-    build: ./taskboard-web
+    build: ./survey-web
     ports: ["8080:80"]
     depends_on: [api]
   api:
-    build: ./taskboard-api
+    build: ./survey-api
     ports: ["8081:8080"]
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/taskboard
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/dynamic_survey
       SPRING_DATASOURCE_USERNAME: appuser
       SPRING_DATASOURCE_PASSWORD: apppw
+      TZ: Asia/Taipei
     depends_on:
       db: { condition: service_healthy }
   db:
     image: mysql:8.4
     environment:
-      MYSQL_DATABASE: taskboard
+      MYSQL_DATABASE: dynamic_survey
       MYSQL_ROOT_PASSWORD: rootpw
       MYSQL_USER: appuser
       MYSQL_PASSWORD: apppw
-    volumes: [db-data:/var/lib/mysql]
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpw"]
       interval: 5s
       retries: 10
 
@@ -489,7 +493,7 @@ volumes:
 
 ⚠️ 易錯點：忘記在檔案最下面加 volumes 區塊宣告 db-data，Compose 會直接報錯說找不到這個 volume。另一個是掛載路徑打錯——MySQL 是 /var/lib/mysql，PostgreSQL 才是 /var/lib/postgresql/data，抄錯的話資料一樣不會被保存，而且要到下次重建才發現。
 
-預期結果：第 6 步 down 再 up 之後，前端頁面上的任務清單完整還在。
+預期結果：第 6 步 down 再 up 之後，標題仍是「Compose 測試」。另外，瀏覽器打開 `http://localhost:8080` 時，畫面可以載入但問卷列表是空的：前端 production build 呼叫的是同源的 `/api`，nginx 還沒有把它轉給 API，這是第六章要解決的問題。
 -->
 
 ---

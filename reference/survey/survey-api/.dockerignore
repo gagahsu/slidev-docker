@@ -1,0 +1,6 @@
+build
+.gradle
+logs
+*.md
+*.txt
+src/main/resources/application-local.yml
