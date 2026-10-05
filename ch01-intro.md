@@ -60,7 +60,7 @@ layout: default
 - **為什麼需要容器化** — VM vs Container 的差異
 - **Docker 架構** — Client / Daemon / Registry 怎麼合作
 - **安裝與驗證** — 安裝 Docker Desktop、跑第一個 hello-world
-- **練習** — 用課程專案 TaskBoard 走一次 `docker run` 流程
+- **練習** — 用課程專案 SSDS（AI 選品系統）走一次 `docker run` 流程
 
 <!--
 跟大家說明一下今天的路線圖。
@@ -76,34 +76,32 @@ layout: default
 layout: default
 ---
 
-# 課程貫穿專案：TaskBoard
+# 課程貫穿專案：AI 選品系統（SSDS）
 
-這八章的範例與練習，都圍繞同一個專案 **TaskBoard（任務看板）**，剛好用上大家已經學過的三項技術：
+九章的範例與練習，全部圍繞大家正在開發的 **ai-products-selection**（程式代號 `ssds`）。目標：**上完課，你的專案就能包成 Docker Image，並部署到雲端給別人用。**
 
 | 元件 | 技術 | 專案資料夾 | 之後的 Image |
 | --- | --- | --- | --- |
-| 前端 | Angular（build 後用 nginx 服務） | `taskboard-web/` | `taskboard-web:1.0.0` |
-| 後端 | Spring Boot + Gradle（Java 21） | `taskboard-api/` | `taskboard-api:1.0.0` |
-| 資料庫 | MySQL 8.4 | `db/init.sql` | `mysql:8.4`（官方 Image） |
+| 前端 | Angular 21（build 後用 nginx 服務） | `ai-products-selection-frontend/` | `ssds-web:1.0.0` |
+| 後端 | Spring Boot 4.1 + Gradle 多模組（Java 21） | `ai-products-selection-backend/` | `ssds-api:1.0.0` |
+| 資料庫 | Supabase PostgreSQL（雲端託管） | — 不放進 Docker | — |
 
 ```
-瀏覽器 → taskboard-web (nginx :80) → taskboard-api (:8080) → taskboard-db (:3306)
+瀏覽器 → ssds-web (nginx :80) ──/api──▶ ssds-api (:8080) ──JDBC──▶ Supabase（雲端 PostgreSQL）
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>課程節奏：</b> 第 1～3 章先用官方 Image 把三個服務手動跑起來，第 4 章自己寫 Dockerfile 打包 API 與前端，第 5 章用 Compose 一次拉起整套，第 6～8 章處理網路、資料持久化與正式部署。
+💡 <b>課程節奏：</b> 1～3 章認識 Image / Container，4 章替前後端寫 Dockerfile，5 章用 Compose 一次拉起，6～7 章處理網路與上傳檔案，8 章做正式環境準備，<b>9 章把兩個 Image 部署到免費、免綁卡的雲端平台</b>。
 </div>
 
 <!--
 在進入觀念之前，先跟大家介紹這門課的「貫穿專案」。
 
-大家之前已經學過 Spring Boot、Angular 跟 MySQL，這門課不會再教這三項技術本身，而是把它們當成素材：我們要學的是怎麼把一個真實的三層架構專案容器化。
+這門課不用假專案，直接拿大家手上正在做的 AI 選品系統來練習。後端是 Spring Boot 4.1 的 Gradle 多模組專案，真正能執行的是 ssds-api 這個模組，打包出來的 jar 叫 ssds.jar；前端是 Angular 21，build 出來的是一堆靜態檔，我們會用 nginx 來服務它。
 
-專案叫 TaskBoard，就是一個任務看板，功能很單純——建立任務、查詢任務、更新狀態。業務邏輯刻意做得簡單，因為我們的重點在 Docker，不在 CRUD。
+資料庫的部分要特別說明：大家現在連的是 Supabase 上的 PostgreSQL，所以資料庫「不需要」放進 Docker。我們只要把前端跟後端各包成一個 Image，後端用環境變數去連 Supabase 就好。這也是業界很常見的做法：應用程式容器化，資料庫交給雲端託管服務。
 
-架構就是最標準的三層：Angular 打包成靜態檔案由 nginx 服務，使用者的請求打到 Spring Boot API，API 再連到 MySQL。
-
-⚠️ 提醒大家一件很重要的事：這八章是連續的，第一章我們手動跑起來的 MySQL 容器，第七章還會回來處理它的資料持久化問題。所以每一章的練習請盡量真的動手做過，後面才不會接不上。
+⚠️ 提醒大家：這九章是連續的。第四章寫好的 Dockerfile，第五章 Compose 會用、第九章部署到雲端也是用同一份。所以每一章的練習請真的在自己的專案上做，最後一章才能直接上線。
 -->
 
 ---
@@ -233,37 +231,34 @@ class: flex flex-col justify-center items-center text-center
 
 # 指令怎麼流動：以 docker run 為例
 
-當我們打下 `docker run` 這個指令，背後其實是 Client、Daemon、Registry 三方合作的結果。這裡直接把 TaskBoard 的資料庫跑起來：
+當我們打下 `docker run` 這個指令，背後其實是 Client、Daemon、Registry 三方合作的結果。這裡先把 SSDS 前端之後要用的 **nginx** 跑起來：
 
 ```bash
-docker run -d --name taskboard-db -p 3307:3306 \
-  -e MYSQL_ROOT_PASSWORD=rootpw \
-  -e MYSQL_DATABASE=taskboard \
-  mysql:8.4
+docker run -d --name ssds-web-try -p 8000:80 nginx:1.28-alpine
 ```
 
 1. **Client** 把 `docker run` 指令送給 **Daemon**
-2. **Daemon** 檢查本機有沒有 `mysql:8.4` 這個 Image
+2. **Daemon** 檢查本機有沒有 `nginx:1.28-alpine` 這個 Image
 3. 如果沒有，**Daemon** 會向 **Registry**（例如 Docker Hub）發出 `docker pull` 請求下載 Image
 4. **Daemon** 用這個 Image 建立並啟動一個新的 **Container**
-5. Container 啟動後，`-p 3307:3306` 把主機的 3307 port 映射到容器內的 3306 port
+5. Container 啟動後，`-p 8000:80` 把主機的 8000 port 映射到容器內的 80 port
 
-執行後，我們就能用平常慣用的 MySQL Workbench 或 DBeaver，連到 `localhost:3307` 使用這個資料庫。
+執行後打開瀏覽器連 `http://localhost:8000`，會看到 **Welcome to nginx!**。第四章就會把 Angular build 出來的檔案放進這個 nginx。
 
 <!--
 這頁我們把「打指令之後發生了什麼事」完整走過一遍，這是理解 Docker 架構最直觀的方式。
 
-我們直接拿 TaskBoard 專案的資料庫來當例子。以前大家在自己電腦上裝 MySQL，要下載安裝檔、設定密碼、設定路徑，弄個十幾分鐘跑不掉；現在一行指令就有一台乾淨的 MySQL 8.4。
+我們拿 SSDS 前端之後會用到的 nginx 當例子。Angular build 完其實就是一堆 HTML、JS、CSS 靜態檔，需要一個 Web Server 來服務，nginx 是業界最常用的選擇。以前要在自己電腦裝 nginx、改設定檔，現在一行指令就有一台。
 
-帶大家看一下參數：`-d` 是背景執行，不然終端機會被 MySQL 的 log 佔滿；`--name taskboard-db` 幫容器取名字，之後所有指令都可以用這個名字操作它；`-p 3307:3306` 是 port 映射，冒號左邊是我們電腦的 port、右邊是容器裡面的 port；`-e` 則是帶環境變數進去，MySQL 官方 Image 就是靠 MYSQL_ROOT_PASSWORD 跟 MYSQL_DATABASE 這兩個變數來初始化的。
+帶大家看一下參數：`-d` 是背景執行，不然終端機會被 log 佔住；`--name ssds-web-try` 幫容器取名字，之後所有指令都可以用這個名字操作它；`-p 8000:80` 是 port 映射，冒號左邊是我們電腦的 port、右邊是容器裡面的 port。
 
-⚠️ 這裡特別解釋一下為什麼主機端用 3307 而不是 3306：很多同學電腦上本來就裝了 MySQL，佔用了 3306，如果這裡也用 3306 就會 port 衝突啟動失敗。用 3307 可以完全避開，容器內部仍然是標準的 3306。
+⚠️ 為什麼主機端用 8000？因為 8080 要留給 Spring Boot 後端，4200 是 Angular 的 ng serve，挑一個不會跟大家平常開發撞到的 port。
 
 流程走一遍：我們在 Client 打指令，Daemon 收到後先看看本機倉庫有沒有這個 Image，沒有的話就跑去 Registry（Docker Hub）拉一份下來，拉完之後才真正建立 Container 並啟動它。
 
-⚠️ 易錯點：第一次執行會需要等待下載時間，mysql:8.4 大概幾百 MB，這是正常的，不是指令壞掉了。之後同一個 Image 再跑就直接用本機快取，一兩秒就起來。
+⚠️ 易錯點：第一次執行會需要等待下載時間，這是正常的，不是指令壞掉了。之後同一個 Image 再跑就直接用本機快取，一兩秒就起來。
 
-預期結果：指令跑完會印出一長串容器 ID，用 GUI 工具連 localhost:3307、帳號 root、密碼 rootpw，就能看到裡面已經有一個叫 taskboard 的空資料庫。
+預期結果：指令跑完會印出一長串容器 ID，瀏覽器打開 localhost:8000 看到 Welcome to nginx 就成功了。玩完用 `docker rm -f ssds-web-try` 刪掉，第三章會詳細教這些指令。
 -->
 
 ---
@@ -553,7 +548,7 @@ Add shortcut to desktop 建議勾著，等一下要開 Docker Desktop 比較好�
 
 <div class="flex flex-col items-center">
 
-<img src="/docker-install-08-dashboard.png" style="width: 78%; border-radius: 6px; border: 1px solid #d0d7de;" />
+<img src="/docker-install-08-dashboard.png" style="width: 70%; border-radius: 6px; border: 1px solid #d0d7de;" />
 
 </div>
 
@@ -698,81 +693,79 @@ docker run hello-world
 layout: default
 ---
 
-# 練習 1：TaskBoard 該用 VM 還是 Container？
+# 練習 1：SSDS 該用 VM 還是 Container？
 ### 任務說明
 
-TaskBoard 團隊有三位開發者，每個人電腦上的環境都不太一樣：
+SSDS 小組有三位組員，每個人電腦上的環境都不太一樣：
 
-- A 的電腦裝了 **MySQL 5.7**（舊專案在用），TaskBoard 需要 **MySQL 8.4**
-- B 的 JDK 是 **17**，TaskBoard 的 Gradle 設定要求 **JDK 21**
-- C 的 Node 是 **18**，Angular 專案要 **Node 20** 才裝得起 dependency
+- A 的 JDK 是 **17**（舊專案在用），SSDS 後端的 Gradle toolchain 要求 **JDK 21**
+- B 的 Node 是 **18**，Angular 21 至少要 **Node 20.19 / 22.12** 才裝得起 dependency
+- C 用 Mac，A、B 用 Windows，最後還要把專案放到 **Linux 雲端主機**給老師 demo
 
-請回答：要讓三個人都能跑起同一套 TaskBoard，用 Container 還是 VM 比較合適？理由是什麼？
+請回答：要讓三個人和雲端主機都跑起同一套 SSDS，用 Container 還是 VM 比較合適？理由是什麼？
 
 ---
 layout: default
 ---
 
-# 練習 1：TaskBoard 該用 VM 還是 Container？
+# 練習 1：SSDS 該用 VM 還是 Container？
 ### 解題提示
 
-1. 先想清楚：三個人缺的是「不同作業系統」，還是「同一個 OS 上的不同版本執行環境」？
-2. 回顧「VM vs Container 核心差異」那張表格，特別留意「資源開銷」與「啟動速度」
-3. 如果用 VM：每個人要為 MySQL、API、前端各開一台裝著完整 OS 的虛擬機，一台幾 GB 記憶體，開機要幾分鐘
-4. 如果用 Container：`mysql:8.4`、`gradle:8.10-jdk21`、`node:20-alpine` 各自帶著自己需要的版本，共用主機核心，秒級啟動
-5. 想想「隔離性」這個特性：A 電腦上原本的 MySQL 5.7 會不會被容器裡的 8.4 影響？
+1. 先想清楚：大家缺的是「不同作業系統」，還是「同一套程式需要的執行環境版本」？
+2. 回顧「VM vs Container 核心差異」那張表格，特別留意「資源開銷」「啟動速度」「可攜性」
+3. 如果用 VM：每個人要開一台裝著完整 OS 的虛擬機，一台幾 GB 記憶體，雲端免費方案根本放不下
+4. 如果用 Container：`eclipse-temurin:21-jre-alpine`、`node:22-alpine`、`nginx:1.28-alpine` 各自帶著需要的版本，Windows / Mac / Linux 跑起來都一樣
+5. 資料庫呢？Supabase 已經在雲端，三台電腦和雲端主機都是「連過去」，不需要各自安裝
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>答案方向：</b> 用 Container。三個人缺的只是「執行環境版本」，不是不同的作業系統，Container 的隔離已經足夠，而且開發機不必付出跑三套 OS 的代價。
+💡 <b>答案方向：</b> 用 Container。大家缺的只是執行環境版本，Container 的隔離已足夠；同一個 Image 在開發機和雲端平台行為一致，第 9 章部署時就是直接拿這個 Image 上去。
 </div>
 
 ---
 layout: default
 ---
 
-# 練習 2：走一遍 TaskBoard 資料庫的啟動流程
+# 練習 2：走一遍 nginx 容器的啟動流程
 ### 任務說明
 
 假設我們在一台剛裝好 Docker Desktop、從來沒下載過任何 Image 的電腦上，執行：
 
 ```bash
-docker run -d --name taskboard-db -p 3307:3306 \
-  -e MYSQL_ROOT_PASSWORD=rootpw \
-  -e MYSQL_DATABASE=taskboard \
-  mysql:8.4
+docker run -d --name ssds-web-try -p 8000:80 nginx:1.28-alpine
 ```
 
 1. 寫出從指令送出到 Container 啟動的完整步驟，標出 Client / Daemon / Registry 各負責哪一段
-2. 說明 `-p 3307:3306` 中兩個 port 分別屬於誰
-3. 如果同事把指令改成 `-p 3306:3306`，而他電腦本來就裝了 MySQL，會發生什麼事？
+2. 說明 `-p 8000:80` 中兩個 port 分別屬於誰
+3. 如果組員把指令改成 `-p 8080:80`，而他 IDE 裡的 Spring Boot 後端正在跑（佔用 8080），會發生什麼事？
 
 ---
 layout: default
 ---
 
-# 練習 2：走一遍 TaskBoard 資料庫的啟動流程
+# 練習 2：走一遍 nginx 容器的啟動流程
 ### 解題提示
 
 1. 回顧「指令怎麼流動：以 docker run 為例」那五個步驟
-2. 先問自己：本機有沒有 `mysql:8.4`？既然是全新安裝，答案是沒有 → 所以會多一段下載
+2. 先問自己：本機有沒有 `nginx:1.28-alpine`？既然是全新安裝，答案是沒有 → 所以會多一段下載
 3. 沒有 Image 的話，Daemon 會向誰要求下載？下載完才進入建立與啟動 Container 的階段
-4. Port 映射：冒號左邊 `3307` 是**主機**的 port，右邊 `3306` 是**容器內**的 port
-5. 第 3 小題想想：主機的 3306 已經被本機 MySQL 佔用，Docker 再去綁同一個 port 會怎樣
+4. Port 映射：冒號左邊 `8000` 是**主機**的 port，右邊 `80` 是**容器內**的 port
+5. 第 3 小題想想：主機的 8080 已經被 Spring Boot 佔用，Docker 再去綁同一個 port 會怎樣
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
 ⚠️ <b>第 3 小題答案：</b> 容器會啟動失敗，錯誤訊息類似 <code>port is already allocated</code>。容器內部用什麼 port 是它家的事，但主機端的 port 全機器只能有一個人佔用。
 </div>
 
 <!--
-這兩題練習題的講稿：第一題重點在幫大家把 VM 和 Container 的差異從表格轉換成實際判斷能力，而且情境就是大家真的會遇到的——同一個團隊裡每個人環境版本都不一樣。第二題則是把 Docker 架構的運作流程用 TaskBoard 的資料庫再走一次，確保大家不只是背名詞，而是真的理解 Client、Daemon、Registry 怎麼合作。
+這兩題練習題的講稿：第一題重點在幫大家把 VM 和 Container 的差異從表格轉換成實際判斷能力，情境就是大家小組裡真的會遇到的——每個人 JDK、Node 版本不一樣，最後還要放到雲端 demo。第二題則是把 Docker 架構的運作流程再走一次，確保大家不只是背名詞，而是真的理解 Client、Daemon、Registry 怎麼合作。
 
-第二題的第三小題是刻意設計的，port 衝突是新手最常撞到的錯誤之一，先在紙上想過一次，實際遇到才不會慌。
+第二題的第三小題是刻意設計的，大家平常在 IDE 跑 Spring Boot 就是佔 8080，port 衝突是新手最常撞到的錯誤之一，先在紙上想過一次，實際遇到才不會慌。
 
-⚠️ 提醒同學，練習的時候不用急著看提示，先自己想過一輪，卡住了再對照提示頁，這樣印象會比較深刻。另外第二題請真的動手執行，因為這個 taskboard-db 容器我們後面幾章都還會用到。
+⚠️ 提醒同學，練習的時候先自己想過一輪，卡住了再對照提示頁。第二題請真的動手執行，執行完記得 `docker rm -f ssds-web-try` 清掉。
 -->
 
 ---
 layout: default
+zoom: 0.94
 ---
 
 <style>
@@ -793,6 +786,7 @@ layout: default
 <tr><td>Docker 架構</td><td>Client（下指令）、Daemon（實際執行）、Registry（存放 Image）三方組成</td></tr>
 <tr><td>docker run 流程</td><td>Daemon 先檢查本機 Image，沒有的話才向 Registry 下載</td></tr>
 <tr><td>安裝驗證</td><td>裝完 Docker Desktop 後，用 <code>docker run hello-world</code> 驗證環境</td></tr>
+<tr><td>貫穿專案</td><td>SSDS 前端 → <code>ssds-web</code>、後端 → <code>ssds-api</code>；資料庫沿用雲端 Supabase，不放進 Docker</td></tr>
 </tbody>
 </table>
 

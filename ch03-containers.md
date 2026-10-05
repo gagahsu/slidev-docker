@@ -140,43 +140,43 @@ docker run hello-world
 
 # docker run — 範例
 
-把 TaskBoard 的三個服務逐一啟動：
+第四章才會寫 Dockerfile，這裡先用**官方 JRE Image** 直接跑我們自己 build 出來的 `ssds.jar`：
 
 ```bash
-# 1. 資料庫：帶環境變數初始化 database 與帳號
-docker run -d --name taskboard-db -p 3307:3306 \
-  -e MYSQL_ROOT_PASSWORD=rootpw \
-  -e MYSQL_DATABASE=taskboard \
-  -e MYSQL_USER=appuser -e MYSQL_PASSWORD=apppw \
-  mysql:8.4
+# 0. 在 ai-products-selection-backend/ 底下先打包（本機 build，產出 ssds-api/build/libs/ssds.jar）
+./gradlew :ssds-api:bootJar -x test
 
-# 2. 後端：用環境變數覆蓋 Spring Boot 的資料庫連線設定
-docker run -d --name taskboard-api -p 8081:8080 \
-  -e SPRING_DATASOURCE_URL=jdbc:mysql://host.docker.internal:3307/taskboard \
-  -e SPRING_DATASOURCE_USERNAME=appuser \
-  -e SPRING_DATASOURCE_PASSWORD=apppw \
-  taskboard-api:1.0.0
+# 1. 後端：把 jar 所在資料夾借給容器用，機密值用 --env-file 從 .env 帶進去
+docker run -d --name ssds-api -p 8080:8080 \
+  --env-file .env \
+  -v "${PWD}/ssds-api/build/libs:/jar:ro" -w /app \
+  eclipse-temurin:21-jre-alpine java -jar /jar/ssds.jar
 
-# 3. 前端：Angular 打包後由 nginx 服務
-docker run -d --name taskboard-web -p 8080:80 taskboard-web:1.0.0
+# 2. 前端：先跑一個空的 nginx 佔位（第四章才放進 Angular）
+docker run -d --name ssds-web -p 8000:80 nginx:1.28-alpine
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>補充：</b> 三行都跑完後，瀏覽器打開 <code>http://localhost:8080</code> 是前端、<code>http://localhost:8081/actuator/health</code> 是後端健康檢查。
+💡 <b>驗證：</b> 等約 20 秒後打開 <code>http://localhost:8080/api/v1/swagger-ui.html</code>，看到 Swagger UI 代表後端已經在容器裡跑起來、而且連上 Supabase 了。
 </div>
 
 <!--
-這頁把 TaskBoard 整套用最原始的方式跑起來，之後第五章我們會知道這三行可以濃縮成一個 docker compose up。
+這頁把 SSDS 用最原始的方式跑起來。我們還沒教 Dockerfile，所以先「借」官方的 eclipse-temurin JRE Image，把本機 build 出來的 jar 交給它執行。這招在實務上也很常用：想快速確認一個 jar 在 Linux + Java 21 環境能不能跑，不用先寫 Dockerfile。
 
-第一行是資料庫。MySQL 官方 Image 支援四個初始化環境變數，MYSQL_DATABASE 會幫我們建好空的 taskboard 資料庫，MYSQL_USER 跟 MYSQL_PASSWORD 會建一個非 root 的應用帳號，並直接授權它操作那個資料庫——這正好對應大家在 application.yml 裡設定的那組帳密。
+第 0 步：在後端專案根目錄打包。我們是 Gradle 多模組，只有 ssds-api 會產出可執行 jar，build.gradle 裡已經把檔名固定成 ssds.jar。
 
-第二行是後端。請大家特別注意這個觀念：Spring Boot 的設定可以用環境變數覆蓋，規則是把 properties 的點換成底線、全部大寫，所以 `spring.datasource.url` 就變成 `SPRING_DATASOURCE_URL`。這是容器化 Spring Boot 最關鍵的一招——同一個 Image，靠不同環境變數就能連到開發、測試、正式三套不同的資料庫，完全不用改程式、不用重 build。
+第 1 步有三個新東西：
+- `--env-file .env`：大家專案根目錄已經有一份 .env，裡面是 SSDS_DB_HOST、SSDS_DB_PASSWORD、MISTRAL_API_KEY 這些機密值。--env-file 會把檔案裡每一行 KEY=VALUE 都變成容器的環境變數，Spring Boot 讀 `${SSDS_DB_PASSWORD}` 時就拿得到。
+- `-v 主機路徑:容器路徑:ro`：把主機上的資料夾「借」給容器看，`ro` 是唯讀。這是第七章的 bind mount，這裡先會用就好。`${PWD}` 在 PowerShell 跟 bash 都代表目前目錄。
+- `-w /app`：設定容器的工作目錄。為什麼要設？因為 application.properties 裡圖片上傳路徑是相對路徑 `./uploads/product`，工作目錄決定檔案寫到哪。
 
-⚠️ 這裡的 `host.docker.internal` 是暫時的權宜寫法。容器裡的 localhost 指的是「容器自己」，不是我們的電腦，所以 API 容器不能寫 localhost:3307。host.docker.internal 是 Docker Desktop 提供的特殊網域名稱，代表「跑 Docker 的這台主機」。這個寫法很醜，第六章我們會用自訂網路，讓 API 直接寫 `jdbc:mysql://taskboard-db:3306/taskboard` 就好。
+⚠️ 重點觀念：Spring Boot 的任何設定都可以用環境變數覆蓋。我們專案的 application.properties 已經寫成 `${SSDS_DB_HOST:預設值}` 這種形式，所以同一個 jar、同一個 Image，換一份環境變數就能連不同的資料庫——第九章部署到雲端也是靠這招，雲端平台的「Environment Variables」設定頁就是在做 --env-file 的事。
 
-⚠️ 易錯點：如果沒有加 -d，終端機會被「卡住」，因為容器是前景執行、佔用了目前的終端機視窗，下一部分會細講。
+⚠️ Windows 易錯點：建議用 PowerShell 跑這些指令。Git Bash 會把 /jar、/app 這種「看起來像路徑」的參數自動改寫成 C:/Program Files/Git/app，容器就找不到檔案；如果一定要用 Git Bash，先執行 `export MSYS_NO_PATHCONV=1`。
 
-預期結果：三行跑完 `docker ps` 應該看到三個容器都是 Up 狀態。
+⚠️ 易錯點：.env 裡的值「不要」加引號。docker 的 --env-file 不會幫你去掉引號，寫成 `SSDS_DB_PASSWORD="abc"` 容器收到的密碼就是含引號的 "abc"，連線會失敗。
+
+預期結果：docker ps 看到兩個容器都是 Up；localhost:8080/api/v1/swagger-ui.html 看得到 API 文件；localhost:8000 是 Welcome to nginx。
 -->
 
 ---
@@ -210,30 +210,29 @@ docker run -d --name taskboard-web -p 8080:80 taskboard-web:1.0.0
 # 看目前正在執行的容器
 docker ps
 
-# NAMES            IMAGE                STATUS         PORTS
-# taskboard-web    taskboard-web:1.0.0  Up 3 minutes   0.0.0.0:8080->80/tcp
-# taskboard-api    taskboard-api:1.0.0  Up 3 minutes   0.0.0.0:8081->8080/tcp
-# taskboard-db     mysql:8.4            Up 4 minutes   0.0.0.0:3307->3306/tcp
+# NAMES      IMAGE                          STATUS         PORTS
+# ssds-web   nginx:1.28-alpine              Up 3 minutes   0.0.0.0:8000->80/tcp
+# ssds-api   eclipse-temurin:21-jre-alpine  Up 3 minutes   0.0.0.0:8080->8080/tcp
 
 # 連已經停止的容器也一起列出來
 docker ps -a
 
 # 下班了，把後端停掉（用名稱或 ID 都可以）
-docker stop taskboard-api
+docker stop ssds-api
 
-# 隔天上班重新啟動，設定與資料都還在
-docker start taskboard-api
+# 隔天上班重新啟動，設定與環境變數都還在
+docker start ssds-api
 
-# 改完 Dockerfile 要換新 Image，先停再刪掉舊容器
-docker stop taskboard-api && docker rm taskboard-api
+# 改完程式重新 bootJar 之後，先停再刪掉舊容器，再 run 一次
+docker stop ssds-api && docker rm ssds-api
 ```
 
 <!--
 這幾行就是最常見的巡店流程：先看誰在跑（ps），關掉一家（stop），過一陣子想重開就 start，真的不要了才 rm。
 
-大家注意 ps 輸出的 PORTS 欄位，`0.0.0.0:8081->8080/tcp` 就是我們 -p 設定的映射結果，箭頭左邊是主機、右邊是容器內。以後容器連不上的時候，第一件事就是看這欄有沒有東西。
+大家注意 ps 輸出的 PORTS 欄位，`0.0.0.0:8080->8080/tcp` 就是我們 -p 設定的映射結果，箭頭左邊是主機、右邊是容器內。以後容器連不上的時候，第一件事就是看這欄有沒有東西。
 
-最後一行是大家之後每天都會用到的組合技：改了程式重新 build Image 之後，舊容器不會自動更新，一定要先 stop 再 rm，然後用新 Image 重新 run 一次。
+最後一行是大家之後每天都會用到的組合技：改了程式重新打包之後，舊容器不會自動更新，一定要先 stop 再 rm，然後重新 run 一次。第四章改成用自己的 Image 之後也是一樣的流程。
 
 ⚠️ 易錯點：docker rm 對「正在執行中」的容器預設不給刪，會報錯，一定要先 stop，或加 -f 強制刪除。
 
@@ -258,7 +257,7 @@ docker container prune
 <!--
 這頁想強調一個很多人踩過的坑：以為 stop 完資料就沒事了，結果過陣子手滑 rm 掉，才發現資料真的救不回來了。
 
-生活化的比喻是「打烊」跟「拆店」的差別：打烊之後櫃子裡的東西都還在，隔天開門都找得到；但拆店之後東西就真的沒了。
+對 SSDS 來說，「容器裡的資料」指的是什麼？資料庫在 Supabase，不會受影響；但使用者上傳的商品圖片，是寫在容器的 /app/uploads 底下，容器一刪就跟著消失。第七章會處理這個問題。
 
 ⚠️ 易錯點：docker container prune 這個指令會一次刪掉「所有」已停止的容器，沒有二次確認就下去按 y 的話，可能會把想留的容器一起清掉，使用前務必先用 ps -a 確認清單。
 
@@ -289,15 +288,19 @@ class: flex flex-col justify-center items-center text-center
 加上 `-d`（detach，背景執行）之後，Docker 只印出 Container ID，容器轉到背景執行，終端機立即可繼續使用。
 
 ```bash
-# 前景：Spring Boot 的啟動 log 直接洗在終端機上，Ctrl+C 會把服務停掉
-docker run taskboard-api:1.0.0
+# 前景：Spring Boot 的 banner 與啟動 log 直接洗在終端機上，Ctrl+C 會把服務停掉
+docker run --rm -p 8080:8080 --env-file .env \
+  -v "${PWD}/ssds-api/build/libs:/jar:ro" \
+  eclipse-temurin:21-jre-alpine java -jar /jar/ssds.jar
 
 # 背景：只印出 Container ID，終端機馬上還給你
-docker run -d --name taskboard-api taskboard-api:1.0.0
+docker run -d --name ssds-api -p 8080:8080 --env-file .env \
+  -v "${PWD}/ssds-api/build/libs:/jar:ro" \
+  eclipse-temurin:21-jre-alpine java -jar /jar/ssds.jar
 ```
 
 <!--
-Spring Boot 的例子最好懂：不加 -d 的時候，那個 Spring 的 ASCII banner 跟啟動 log 會直接洗在你的終端機上，這其實在第一次除錯的時候很好用，可以直接看到它有沒有連上資料庫。但它會佔住視窗，而且你一按 Ctrl+C 服務就停了。
+Spring Boot 的例子最好懂：不加 -d 的時候，那個 Spring 的 ASCII banner 跟啟動 log 會直接洗在你的終端機上，這其實在第一次除錯的時候很好用，可以直接看到它有沒有連上 Supabase、有沒有出現 HikariPool 的錯誤。但它會佔住視窗，而且你一按 Ctrl+C 服務就停了。
 
 大家可以把前景執行想成「顧著爐子煎蛋」，你人一定要站在旁邊，離開爐子蛋就糊了；背景執行則是「丟進電鍋按下開關」，你可以去忙別的事，電鍋自己煮。
 
@@ -332,14 +335,14 @@ Spring Boot 的例子最好懂：不加 -d 的時候，那個 Spring 的 ASCII b
 # -it / -d — 範例
 
 ```bash
-# 互動模式：開一個「用完就丟」的容器，測試 Gradle 版本對不對
-docker run -it --rm gradle:8.10-jdk21 bash
+# 互動模式：開一個「用完就丟」的容器，確認 Node 版本夠不夠跑 Angular 21
+docker run -it --rm node:22-alpine sh
 
-# 背景模式：長駐執行 TaskBoard 後端服務
-docker run -d --name taskboard-api -p 8081:8080 taskboard-api:1.0.0
+# 背景模式：長駐執行 SSDS 前端的 nginx
+docker run -d --name ssds-web -p 8000:80 nginx:1.28-alpine
 
 # 用 exec 進入「已經在跑」的容器，而不是新建一個
-docker exec -it taskboard-api sh
+docker exec -it ssds-api sh
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
@@ -347,13 +350,15 @@ docker exec -it taskboard-api sh
 </div>
 
 <!--
-第一行示範互動模式的實際用途：我想確認 gradle:8.10-jdk21 這個 Image 裡的 Java 到底是不是 21、Gradle 指令能不能跑，就開一個臨時容器進去打 `java -version`、`gradle -v`，看完 exit 離開，加了 --rm 容器自動消失，不留垃圾。這在第四章寫 Dockerfile 之前很好用——先進去確認環境，再把確認過的指令寫進 Dockerfile。
+第一行示範互動模式的實際用途：我想確認 node:22-alpine 這個 Image 的 Node 版本符不符合 Angular 21 的要求，就開一個臨時容器進去打 `node -v`、`npm -v`，看完 exit 離開，加了 --rm 容器自動消失，不留垃圾。這在第四章寫 Dockerfile 之前很好用——先進去確認環境，再把確認過的指令寫進 Dockerfile。
 
-第二行是背景長駐服務，我們平常部署的 API、資料庫幾乎都是這種模式。
+第二行是背景長駐服務，我們平常部署的 API、Web Server 幾乎都是這種模式。
 
 第三行帶到下一個重點：exec，它不是新建容器，而是「溜進」一個已經在運作中的容器，下一頁細講。
 
-⚠️ 易錯點：第一行的容器一旦 exit 離開 bash，容器就會跟著停止，因為 bash 是這個容器的主行程。但第二行的 taskboard-api 不一樣，它的主行程是 java，所以 exec 進去再離開，服務照常運作。
+⚠️ 易錯點：alpine 系列的 Image 沒有 bash，只有 sh。打 `docker exec -it ssds-api bash` 會得到 executable file not found 的錯誤，改用 sh 就好。
+
+⚠️ 易錯點：第一行的容器一旦 exit 離開 sh，容器就會跟著停止，因為 sh 是這個容器的主行程。但 ssds-api 不一樣，它的主行程是 java，所以 exec 進去再離開，服務照常運作。
 
 預期結果：第一行會直接進入容器內的 shell 提示字元。
 -->
@@ -365,18 +370,20 @@ docker exec -it taskboard-api sh
 「`docker exec` 會在一個『正在執行中』的容器裡，額外執行一個新指令，不會影響容器原本的主行程。」
 
 ```bash
-# 進到資料庫容器裡，直接用 mysql client 查資料
-docker exec -it taskboard-db mysql -uappuser -papppw taskboard
+# 進到後端容器裡，從「容器內部」打自己的 API
+docker exec -it ssds-api wget -qO- http://localhost:8080/api/v1/v3/api-docs
 ```
 
 <!--
-大家平常除錯的時候，最常用的就是這招：容器已經跑起來了，想進去看看設定檔對不對、log 在哪裡，就用 exec 進去看。
+大家平常除錯的時候，最常用的就是這招：容器已經跑起來了，想進去看看設定對不對、服務有沒有在聽，就用 exec 進去看。
 
-這個範例特別實用：以前我們要用 MySQL Workbench 才能查資料，現在容器裡本來就附了 mysql 這個命令列 client，一行指令就進到 SQL 提示字元，可以直接 `select * from task;` 確認 Spring Boot 到底有沒有把資料寫進去。這是除錯 API 時最快的驗證方式。
+這個範例特別實用：如果瀏覽器連 localhost:8080 連不到，到底是「Spring Boot 沒起來」還是「port 映射沒設好」？從容器內部打 localhost:8080 就能分辨——容器內打得到、外面打不到，就是 -p 的問題；容器內也打不到，就是 Spring Boot 本身的問題。
+
+alpine 版的 Image 內建 busybox 的 wget，不用另外裝 curl。
 
 ⚠️ 易錯點：docker exec 執行的指令必須是「可執行檔」，不能直接丟一串用 && 串起來的指令。例如 docker exec -it my_container "echo a && echo b" 是錯的，要寫成 docker exec -it my_container sh -c "echo a && echo b" 才對。
 
-預期結果：執行後會拿到容器內的 shell 提示字元，可以在裡面下 ls、cat 等指令查看。
+預期結果：印出一大串 OpenAPI 的 JSON，代表 API 在容器內是正常的。
 -->
 
 ---
@@ -405,29 +412,31 @@ docker exec -it taskboard-db mysql -uappuser -papppw taskboard
 # docker exec — 範例
 
 ```bash
-# 進資料庫容器下 SQL：確認 Spring Boot 的 JPA 有沒有幫我們建表
-docker exec -it taskboard-db mysql -uappuser -papppw taskboard -e "show tables;"
+# 檢查容器實際吃到的環境變數（連不上 Supabase 時第一個要看）
+docker exec ssds-api env | grep SSDS_DB
 
-# 進後端容器的 shell，看看 jar 檔到底放在哪
-docker exec -it taskboard-api sh
+# 進後端容器的 shell，看看工作目錄與上傳檔案放在哪
+docker exec -it ssds-api sh
 
-# 檢查容器實際吃到的環境變數（除錯資料庫連線必看）
-docker exec taskboard-api env | grep SPRING
+# 確認容器連得到外面的 Supabase（DNS 解析 + 對外網路）
+docker exec ssds-api nslookup aws-0-ap-south-1.pooler.supabase.com
 
-# 指定工作目錄執行指令：看 Angular 打包出來的靜態檔
-docker exec -w /usr/share/nginx/html taskboard-web ls
+# 指定工作目錄執行指令：看 nginx 預設的網站目錄
+docker exec -w /usr/share/nginx/html ssds-web ls
 ```
 
 <!--
-這四行是除錯 TaskBoard 時的標準工具組，大家一定會用到。
+這四行是除錯 SSDS 時的標準工具組，大家一定會用到。
 
-第一行：JPA 設定 ddl-auto 之後，最快確認「表到底建起來沒」的方法。用 -e 帶 SQL 進去，不用進互動模式，很適合寫在腳本裡。
+第一行是我最推薦大家記起來的一行。API 連不上資料庫的時候，九成問題出在環境變數：可能 .env 少了一行、可能 key 拼錯、可能值多了引號。這行直接把容器實際收到的 SSDS_DB 開頭變數列出來，一看就知道。
 
-第二行：進後端容器逛一圈，確認 jar 檔的路徑跟我們 Dockerfile 寫的一不一樣。
+⚠️ 注意：這行會把密碼印在螢幕上，示範或截圖的時候要小心，不要貼到群組裡。
 
-第三行是我最推薦大家記起來的一行。API 連不上資料庫的時候，九成問題出在環境變數：可能 key 拼錯、可能 docker run 的時候少打一個 -e。這行直接把容器實際收到的 SPRING_ 開頭變數列出來，一看就知道。
+第二行：進後端容器逛一圈，`pwd` 看工作目錄、`ls uploads` 看上傳的圖片有沒有寫進來。
 
-第四行確認 Angular 的 dist 檔案有沒有正確複製到 nginx 的預設目錄。網頁打開是 404 的時候先查這個。
+第三行：我們的資料庫不在本機，而在 Supabase。容器要連得出去，DNS 解析和對外網路都要正常。nslookup 有回 IP，代表容器至少找得到 Supabase。
+
+第四行確認 nginx 的網站目錄裡有什麼。第四章把 Angular 放進去之後，網頁打開是 404 的時候先查這個。
 
 ⚠️ 易錯點：exec 進去改的東西只存在這個容器裡，不會回寫到 Image，容器被刪掉改動就一起消失。要永久生效必須改 Dockerfile 重新 build。
 
@@ -441,12 +450,12 @@ docker exec -w /usr/share/nginx/html taskboard-web ls
 「`docker exec` 進入的是容器內部的一個『額外行程』，離開這個行程（例如 exit）不會讓容器本身停止，因為容器真正的主行程還在跑。」
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-⚠️ <b>易錯點：</b> 這點跟 <code>docker run -it</code> 不一樣！在 run 建立的容器裡，如果互動的行程（例如 bash）就是主行程，exit 離開就會讓整個容器跟著停止。
+⚠️ <b>易錯點：</b> 這點跟 <code>docker run -it</code> 不一樣！在 run 建立的容器裡，如果互動的行程（例如 sh）就是主行程，exit 離開就會讓整個容器跟著停止。
 </div>
 
 ```bash
 # 多重指令一定要包在 sh -c "..." 裡面
-docker exec -it taskboard-api sh -c "ls /app && cat /app/application.yml"
+docker exec -it ssds-api sh -c "pwd && ls -la /app && ls /jar"
 ```
 
 <!--
@@ -454,11 +463,11 @@ docker exec -it taskboard-api sh -c "ls /app && cat /app/application.yml"
 
 用生活比喻來說：run -it 像是「你就是店長，你一走整間店就打烊了」；exec -it 則是「你只是臨時進去巡店的訪客，你走了店還是照常營業」。
 
-套到 TaskBoard：exec 進 taskboard-api 打 exit，Spring Boot 的 java 行程還在跑，API 完全不受影響，因為我們只是開了一個額外的 shell 行程。
+套到 SSDS：exec 進 ssds-api 打 exit，Spring Boot 的 java 行程還在跑，API 完全不受影響，因為我們只是開了一個額外的 shell 行程。
 
 ⚠️ 易錯點：串接指令一定要包在 sh -c "..." 裡面，直接丟多重指令會報錯，這是官方文件特別強調的一點。
 
-預期結果：這頁執行完會先列出 /app 目錄內容，再印出設定檔內容。
+預期結果：先印出工作目錄 /app，再列出 /app 的內容，最後列出 /jar 底下的 ssds.jar。
 -->
 
 ---
@@ -531,28 +540,30 @@ class: flex flex-col justify-center items-center text-center
 
 ```bash
 # 建立並啟動
-docker run -d --name taskboard-api -p 8081:8080 taskboard-api:1.0.0
+docker run -d --name ssds-api -p 8080:8080 --env-file .env \
+  -v "${PWD}/ssds-api/build/libs:/jar:ro" -w /app \
+  eclipse-temurin:21-jre-alpine java -jar /jar/ssds.jar
 
 # 暫停與恢復（凍結行程，記憶體內容保留）
-docker pause taskboard-api
-docker unpause taskboard-api
+docker pause ssds-api
+docker unpause ssds-api
 
 # 停止與重新啟動（Spring Boot 會完整重跑一次啟動流程）
-docker stop taskboard-api
-docker start taskboard-api
+docker stop ssds-api
+docker start ssds-api
 
 # 查看目前狀態
-docker ps -a --filter name=taskboard
+docker ps -a --filter name=ssds
 ```
 
 <!--
 大家可以照這個順序在終端機一步步跑過一次，中間每執行一行就順手打一次 docker ps -a，親眼看著 STATUS 欄位從 Up 變 Paused、變 Exited、再變回 Up，會比死背這張表更有感覺。
 
-這裡順便讓大家體會 pause 跟 stop 的差別：pause 之後打 API 會「卡住」等待，unpause 之後那個請求會繼續完成；stop 之後打 API 是直接連線被拒絕，而且 start 起來 Spring Boot 要重新跑一次啟動流程，等個幾秒才會服務。
+這裡順便讓大家體會 pause 跟 stop 的差別：pause 之後在瀏覽器重新整理 Swagger 會「卡住」等待，unpause 之後那個請求會繼續完成；stop 之後是直接連線被拒絕，而且 start 起來 Spring Boot 要重新跑一次啟動流程——我們的專案模組多、啟動時還要連 Supabase，大概要等十幾二十秒才會服務。
 
 ⚠️ 易錯點：pause 期間容器完全凍結，如果這時候有使用者正在打這個服務的 API，請求會卡住沒有回應，不是報錯，是真的沒反應，正式環境要謹慎使用。
 
-預期結果：最後一行的 docker ps -a 會顯示 taskboard-api 目前的實際狀態。
+預期結果：最後一行的 docker ps -a 會列出 ssds-api 與 ssds-web 目前的實際狀態。
 -->
 
 ---
@@ -562,17 +573,22 @@ docker ps -a --filter name=taskboard
 「`docker logs` 會把容器的標準輸出（STDOUT）跟標準錯誤（STDERR）印出來，這是除錯的第一道防線。」
 
 ```bash
-docker logs taskboard-api
+docker logs ssds-api
 ```
 
 <!--
 這是我們平常除錯最先做的一件事：服務跑不起來、連不上，第一步永遠是先看 log，而不是急著重開容器。
 
-對 Spring Boot 來說這頁特別重要。API 容器 `docker ps` 顯示 Exited，原因幾乎都寫在 log 裡：可能是 `Communications link failure`（連不到資料庫）、可能是 `Port 8080 was already in use`、也可能是 `Table 'taskboard.task' doesn't exist`。不看 log 就重開，重開一百次還是同一個錯。
+對 Spring Boot 來說這頁特別重要。ssds-api 容器 `docker ps -a` 顯示 Exited，原因幾乎都寫在 log 裡，SSDS 最常見的三種：
+- `password authentication failed for user "ssds_app"`：最常見。可能是 .env 根本沒帶進去（忘了 --env-file，Spring Boot 拿不到密碼，但還是會用預設的 Supabase 網址去連），也可能是密碼錯、或值多了引號。用下一部分的 `docker exec ssds-api env | grep SSDS_DB` 就分得出是哪一種
+- `UnknownHostException` / `Network is unreachable`：SSDS_DB_HOST 寫錯，或用了 Supabase 的 direct connection（第六章詳解）
+- `Port 8080 was already in use`：IDE 裡的 Spring Boot 還開著
 
-⚠️ 易錯點：docker logs 只能看到容器「輸出到 STDOUT/STDERR」的內容。這也是為什麼容器化的 Spring Boot 專案，logback 通常只設定 console appender，不寫檔案——寫進容器裡的檔案，容器一刪就沒了，還不如直接印到標準輸出讓 Docker 收。
+不看 log 就重開，重開一百次還是同一個錯。
 
-預期結果：畫面會印出容器啟動至今的所有輸出紀錄。
+⚠️ 易錯點：docker logs 只能看到容器「輸出到 STDOUT/STDERR」的內容。這也是為什麼容器化的 Spring Boot 專案，logback 通常只用 console appender，不寫檔案——寫進容器裡的檔案，容器一刪就沒了，而且第九章的雲端平台也是收 STDOUT 來顯示 log。
+
+預期結果：畫面會印出容器啟動至今的所有輸出紀錄，最後應該看到 `Started SsdsApplication in xx seconds`。
 -->
 
 ---
@@ -601,29 +617,29 @@ docker logs taskboard-api
 # docker logs — 範例
 
 ```bash
-# 即時追蹤 log（最常用於除錯：一邊按前端，一邊看 API 有沒有收到請求）
-docker logs -f taskboard-api
+# 即時追蹤 log（最常用於除錯：一邊在 Swagger 按 API，一邊看有沒有收到請求）
+docker logs -f ssds-api
 
 # 只看最後 50 行，並加上時間戳記
-docker logs -n 50 -t taskboard-api
+docker logs -n 50 -t ssds-api
 
 # 只看最近 30 分鐘的 log
-docker logs --since 30m taskboard-api
+docker logs --since 30m ssds-api
 
 # 直接撈出錯誤：Spring Boot 的例外堆疊都在這
-docker logs taskboard-api 2>&1 | grep -i "exception\|error"
+docker logs ssds-api 2>&1 | grep -i "exception\|error"
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>補充：</b> <code>--since</code> 跟 <code>--until</code> 除了接受相對時間（如 <code>30m</code>、<code>1h</code>），也能接受完整的日期時間格式。
+💡 <b>補充：</b> <code>--since</code> 跟 <code>--until</code> 除了接受相對時間（如 <code>30m</code>、<code>1h</code>），也能接受完整的日期時間格式。PowerShell 沒有 <code>grep</code>，改用 <code>| Select-String -Pattern "exception|error"</code>。
 </div>
 
 <!--
-第一行是我們日常除錯最常打的指令。實務上的用法是：開一個終端機視窗掛著 `docker logs -f taskboard-api`，然後去瀏覽器操作 Angular 前端，新增一筆任務，回頭看 log 有沒有跳出 Hibernate 的 insert 語句——這樣就能確定請求到底有沒有打到後端、有沒有寫進資料庫。
+第一行是我們日常除錯最常打的指令。實務上的用法是：開一個終端機視窗掛著 `docker logs -f ssds-api`，然後去 Swagger UI 打一支 API，例如商品列表，回頭看 log 有沒有跳出 Hibernate 的 select 語句（dev profile 有開 show-sql）——這樣就能確定請求到底有沒有打到後端、有沒有真的查到 Supabase。
 
 第二、三行則是回顧型的查詢，服務已經跑了很久，我們只想看最近發生了什麼事，不想從頭滑到尾。
 
-⚠️ 易錯點：如果容器已經被 rm 刪除，log 也會一起消失，正式環境通常會搭配額外的 log 收集工具（例如集中式日誌系統）長期保存，docker logs 只適合當下即時查看。
+⚠️ 易錯點：如果容器已經被 rm 刪除，log 也會一起消失，正式環境通常會搭配額外的 log 收集工具長期保存，docker logs 只適合當下即時查看。
 
 預期結果：第一行執行後畫面會持續更新，直到我們按 Ctrl+C 離開。
 -->
@@ -639,7 +655,7 @@ docker logs taskboard-api 2>&1 | grep -i "exception\|error"
 </div>
 
 ```bash
-docker ps -a && docker logs --tail 20 taskboard-api
+docker ps -a && docker logs --tail 20 ssds-api
 ```
 
 <!--
@@ -654,24 +670,23 @@ docker ps -a && docker logs --tail 20 taskboard-api
 layout: default
 ---
 
-# 練習 1：啟動 TaskBoard 資料庫並巡查
+# 練習 1：在容器裡跑起 SSDS 後端並巡查
 ### 任務說明
 
-我們要把 TaskBoard 的資料庫容器完整操作一遍：
+在 `ai-products-selection-backend/` 目錄下完成：
 
-1. 用背景模式啟動 `mysql:8.4`，命名為 `taskboard-db`，主機 `3307` 映射到容器 `3306`，並帶入四個環境變數：
-   `MYSQL_ROOT_PASSWORD=rootpw`、`MYSQL_DATABASE=taskboard`、`MYSQL_USER=appuser`、`MYSQL_PASSWORD=apppw`
-2. 確認容器有成功在背景執行，並記下 PORTS 欄位顯示的內容
-3. 查看這個容器的 log，找到 `ready for connections` 這句話（MySQL 要跑幾秒初始化，太快查會看不到）
-4. 停止容器，並確認狀態變成 Exited
-5. 重新啟動它，再確認狀態變回 Up
+1. 用 `./gradlew :ssds-api:bootJar -x test` 打包，確認產出 `ssds-api/build/libs/ssds.jar`
+2. 用背景模式啟動 `eclipse-temurin:21-jre-alpine`，命名 `ssds-api`，主機 `8080` 對容器 `8080`，用 `--env-file .env` 帶入機密，並把 jar 資料夾唯讀掛到 `/jar`
+3. 確認容器在背景執行，記下 PORTS 欄位內容
+4. 查看 log，找到 `Started SsdsApplication` 這句話（實測約 30 秒，太快查會看不到）
+5. 停止容器並確認狀態變成 Exited，再重新啟動，確認變回 Up
 
 <!--
-這是本章第一題，把 Part 1 的五個基本指令實際操作一遍，順便把後面每一章都要用的資料庫容器建起來。
+這是本章第一題，把 Part 1 的基本指令實際操作一遍，而且是在大家自己的專案上做。
 
-第 3 步特別重要：MySQL 容器不是 docker run 完就能連的，它要先初始化資料目錄、建立資料庫跟帳號，這段時間大概幾秒到十幾秒。很多同學 API 連不上資料庫，其實只是 MySQL 還沒 ready。學會用 log 判斷「資料庫真的可以接受連線了」，是這題最大的收穫，這也是第五章 healthcheck 要解決的問題。
+第 4 步特別重要：Spring Boot 容器不是 docker run 完就能用的，它要先建 Spring context、連 Supabase、初始化 JPA，實測大約 30 秒。很多同學一 run 完馬上開瀏覽器，看到連線被拒絕就以為失敗了，其實只是還沒 ready。學會用 log 判斷「服務真的可以接受請求了」，是這題最大的收穫，這也是第五章 healthcheck 要解決的問題。
 
-⚠️ 易錯點：記得用 -d 背景執行，不然終端機會被 MySQL 的 log 佔滿。
+⚠️ 易錯點：一定要在後端專案根目錄執行，因為 .env 跟 ${PWD} 都是相對於目前目錄。在錯的資料夾執行會出現 `open .env: no such file`。
 -->
 
 ---
@@ -681,53 +696,46 @@ layout: default
 # 練習 1：解題提示
 ### 提示說明
 
-1. 啟動：
+1. 打包：`./gradlew :ssds-api:bootJar -x test`（Windows PowerShell 用 `.\gradlew`）
+2. 啟動：
    ```bash
-   docker run -d --name taskboard-db -p 3307:3306 \
-     -e MYSQL_ROOT_PASSWORD=rootpw -e MYSQL_DATABASE=taskboard \
-     -e MYSQL_USER=appuser -e MYSQL_PASSWORD=apppw mysql:8.4
+   docker run -d --name ssds-api -p 8080:8080 --env-file .env \
+     -v "${PWD}/ssds-api/build/libs:/jar:ro" -w /app \
+     eclipse-temurin:21-jre-alpine java -jar /jar/ssds.jar
    ```
-2. 確認執行中：`docker ps`（PORTS 欄應顯示 `0.0.0.0:3307->3306/tcp`）
-3. 查看 log：`docker logs taskboard-db | grep "ready for connections"`
-4. 停止並確認：`docker stop taskboard-db && docker ps -a`
-5. 重新啟動：`docker start taskboard-db`
+3. 確認執行中：`docker ps`（PORTS 欄應顯示 `0.0.0.0:8080->8080/tcp`）
+4. 查看 log：`docker logs ssds-api | grep "Started SsdsApplication"`
+5. 停止再啟動：`docker stop ssds-api && docker ps -a`，然後 `docker start ssds-api`
 
 <!--
 提示都是 Part 1 教過的原班指令，只是要大家自己組出完整流程。
 
-⚠️ 易錯點：docker ps 預設只顯示執行中的容器，要確認「已停止」的狀態記得加 -a。另外第 3 步如果 grep 不到，先等個十秒再試一次，不是指令打錯。
+⚠️ 易錯點：docker ps 預設只顯示執行中的容器，要確認「已停止」的狀態記得加 -a。第 4 步 grep 不到的話，先等十秒再試；如果一直等不到、容器反而變成 Exited，就用 `docker logs ssds-api` 看完整錯誤，八成是 .env 的問題。
 
-預期結果：最後 docker ps 能看到 taskboard-db 回到 Up 狀態。請保留這個容器，練習 2 還要用。
+預期結果：最後 docker ps 能看到 ssds-api 回到 Up 狀態。請保留這個容器，練習 2 還要用。
 -->
 
 ---
 layout: default
 ---
 
-# 練習 2：進資料庫容器除錯
+# 練習 2：進後端容器除錯
 ### 任務說明
 
-延續練習 1 的 `taskboard-db` 容器：
+延續練習 1 的 `ssds-api` 容器：
 
-1. 用互動模式進入容器，執行 `mysql -uappuser -papppw taskboard`，再下 `show tables;` 看看現在有沒有表
-2. 在 SQL 提示字元裡手動建一張表並塞一筆資料（模擬 Spring Boot 的 JPA 之後會做的事）：
-   ```sql
-   CREATE TABLE task (id BIGINT PRIMARY KEY AUTO_INCREMENT,
-                      title VARCHAR(100), done BOOLEAN DEFAULT FALSE);
-   INSERT INTO task (title) VALUES ('學會 docker exec');
-   ```
-3. 離開 SQL，用 `docker exec` 搭配 `-e` 參數，不進互動模式直接查出這筆資料
+1. 用 `docker exec` 列出容器裡所有 `SSDS_` 開頭的環境變數，確認 `.env` 真的有帶進去
+2. 用互動模式進入容器，執行 `pwd` 與 `ls -la`，確認工作目錄是 `/app`
+3. 不進互動模式，直接在容器內用 `wget` 打 `http://localhost:8080/api/v1/v3/api-docs`，確認 API 在容器內是活的
 4. 用 `docker logs` 只看最近 10 分鐘的 log
-5. **想一想（先別動手）**：如果現在 `docker rm -f taskboard-db` 再重新 `docker run`，剛剛那筆資料還在嗎？
+5. **想一想（先別動手）**：如果使用者在前端上傳了一張商品圖片，圖片會存到哪？`docker rm -f ssds-api` 再重新 `docker run` 後，圖片還在嗎？Supabase 裡的資料呢？
 
 <!--
 這一題把 Part 2 的 exec 跟 Part 3 的 logs 串在一起，而且情境完全是真實除錯會做的事。
 
-第 3 步要大家自己組出 `docker exec taskboard-db mysql -uappuser -papppw taskboard -e "select * from task;"` 這種寫法，這是寫在腳本裡最常用的形式。
+第 3 步要大家自己組出 `docker exec ssds-api wget -qO- http://localhost:8080/api/v1/v3/api-docs` 這種寫法，這是寫在腳本裡最常用的形式。注意我們專案有設 context-path，所以路徑前面一定要有 /api/v1。
 
-第 5 步是刻意留的伏筆，答案是「資料會全部不見」，因為容器的可寫層跟容器同生共死。這個痛點就是第七章 Volume 要解決的問題，這裡先讓大家在腦中留一個問號，不要真的刪掉容器。
-
-⚠️ 易錯點：第 1 步 mysql 指令的 -u 跟 -p 後面「不能有空格」，寫成 `-u appuser` 會失敗。
+第 5 步是刻意留的伏筆。application.properties 寫的圖片路徑是 `./uploads/product`，工作目錄是 /app，所以圖片會在容器的 /app/uploads/product 裡。容器刪掉，可寫層一起消失，圖片就沒了；但 Supabase 的資料在雲端，完全不受影響。這個「資料庫沒事、檔案不見」的落差，就是第七章 Volume 要解決的問題。
 -->
 
 ---
@@ -738,29 +746,31 @@ layout: default
 ### 提示說明
 
 ```bash
-# 1-2. 進互動 SQL 提示字元，貼上建表與 insert
-docker exec -it taskboard-db mysql -uappuser -papppw taskboard
+# 1. 檢查環境變數（注意：會印出密碼，別截圖分享）
+docker exec ssds-api env | grep SSDS_
 
-# 3. 不進互動模式，直接下 SQL 查資料
-docker exec taskboard-db mysql -uappuser -papppw taskboard \
-  -e "select * from task;"
+# 2. 進互動 shell
+docker exec -it ssds-api sh        # 進去後打 pwd、ls -la，exit 離開
+
+# 3. 不進互動模式，直接從容器內打 API
+docker exec ssds-api wget -qO- http://localhost:8080/api/v1/v3/api-docs
 
 # 4. 篩選時間查 log
-docker logs --since 10m taskboard-db
+docker logs --since 10m ssds-api
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-⚠️ <b>第 5 題答案：</b> 資料會<b>全部消失</b>。容器刪掉，它的可寫層就一起沒了。要讓資料活下來，必須把 MySQL 的資料目錄掛到 Volume 上 — 這正是第七章的主題。
+⚠️ <b>第 5 題答案：</b> 圖片存在容器的 <code>/app/uploads/product</code>，容器刪掉就<b>全部消失</b>；Supabase 的資料在雲端，不受影響。要讓上傳檔案活下來，必須把 <code>/app/uploads</code> 掛到 Volume — 這正是第七章的主題。
 </div>
 
 <!--
 這題重點是分清楚 exec -it（互動）跟 exec 直接帶指令的差別，以及第 5 題那個伏筆。
 
-第 5 題請大家一定要有感：這就是為什麼「容器不能拿來存資料」這句話會被講一百次。我們現在手上的 taskboard-db 是很脆弱的，同事誤下一個 docker rm，開發資料全部歸零。第七章我們會用一行 -v 參數把這個問題解決掉。
+第 5 題請大家一定要有感：資料庫放在雲端託管服務，是我們這個專案的優勢；但只要程式有「寫檔案到本機」的行為，容器化之後就要額外處理。第九章部署到免費雲端平台時，這個問題會再出現一次，而且更嚴重——免費方案通常沒有永久磁碟。
 
 ⚠️ 易錯點：如果直接對執行中的容器下 docker rm，Docker 會拒絕，除非加 -f。
 
-預期結果：第 3 步應該印出一張表格，看到剛剛 insert 的那筆「學會 docker exec」。請不要刪掉 taskboard-db 容器，後面幾章還會用到。
+預期結果：第 3 步應該印出一大串 OpenAPI JSON。練習做完可以 `docker rm -f ssds-api ssds-web` 清掉，第四章我們會改用自己 build 的 Image。
 -->
 
 ---

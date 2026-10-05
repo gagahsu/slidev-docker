@@ -115,12 +115,12 @@ class: flex flex-col justify-center items-center text-center
 
 「Image 採用分層（Layer）架構，每一層代表一組檔案系統的變更——新增、刪除或修改某些檔案。」
 
-以 TaskBoard 的後端 `taskboard-api` 為例：
+以 SSDS 的後端 `ssds-api` 為例：
 
 - 最底層：作業系統基礎環境（Alpine Linux）
 - 中間層：JRE 21 執行環境（`eclipse-temurin:21-jre-alpine`）
 - 再上一層：Gradle 產出的相依函式庫
-- 最上層：複製我們自己打包出來的 `taskboard-api.jar`
+- 最上層：複製我們自己打包出來的 `ssds.jar`
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
 💡 <b>重點：</b> Image「建立後不可修改」，只能在既有 Layer 上面疊加新的 Layer；相同的底層 Layer 可以被多個 Image 共用，不用重複下載。
@@ -135,7 +135,7 @@ class: flex flex-col justify-center items-center text-center
 
 ⚠️ 易錯點：很多同學會以為修改 Image 裡的檔案就是「改掉原本的 Layer」，但其實 Docker 是幫我們建立一個新的 Layer 疊上去，原本的 Layer 完全不會被動到。這也是為什麼 Image 是「不可變（immutable）」的。
 
-用 TaskBoard 來對照就很有感：我們每天改 Controller 改個十幾次，但底層的 Alpine 跟 JRE 21 從頭到尾沒變，所以每次重新建 Image，真正需要重做的只有最上面那層 jar，這就是為什麼容器化的專案 rebuild 可以那麼快。
+用 SSDS 來對照就很有感：我們每天改 Controller 改個十幾次，但底層的 Alpine 跟 JRE 21 從頭到尾沒變，所以每次重新建 Image，真正需要重做的只有最上面那層 jar，這就是為什麼容器化的專案 rebuild 可以那麼快。
 
 預期結果：大家聽完能理解，為什麼下載新 Image 時，有時候會看到「有幾層很快就下載完」——那是因為本機已經有一樣的 Layer 了。
 -->
@@ -202,31 +202,34 @@ class: flex flex-col justify-center items-center text-center
 
 # docker pull — 範例
 
-先把 TaskBoard 之後會用到的基礎 Image 都抓下來：
+先把 SSDS 之後會用到的基礎 Image 都抓下來：
 
 ```bash
 # 沒指定 tag，預設抓 latest（不建議用在專案上）
-docker pull mysql
+docker pull nginx
 
-# 指定版本，TaskBoard 專案統一用這幾個
-docker pull mysql:8.4                      # 資料庫
-docker pull eclipse-temurin:21-jre-alpine  # 跑 taskboard-api.jar
-docker pull nginx:1.27-alpine              # 服務 Angular 打包後的靜態檔
+# 指定版本，SSDS 專案統一用這幾個
+docker pull eclipse-temurin:21-jdk-alpine  # build 階段：用 ./gradlew 編譯後端
+docker pull eclipse-temurin:21-jre-alpine  # runtime：跑 ssds.jar
+docker pull node:22-alpine                 # build 階段：ng build 前端
+docker pull nginx:1.28-alpine              # runtime：服務 Angular 打包後的靜態檔
 
 # 從公司內部私有 registry 下載
-docker pull registry-host:5000/myadmin/taskboard-api:1.0.0
+docker pull registry-host:5000/myadmin/ssds-api:1.0.0
 ```
 
 執行後 Docker 會逐層（layer）顯示下載進度，如果本機已經有相同的 Layer，會直接顯示 `Already exists`，不會重複下載。
 
 <!--
-這頁帶大家實際操作 pull 指令，順便把 TaskBoard 後面幾章要用的基礎 Image 先準備好。
+這頁帶大家實際操作 pull 指令，順便把 SSDS 後面幾章要用的基礎 Image 先準備好。
 
-先看第一個範例，`docker pull mysql`，沒有指定 tag，Docker 預設會抓 `latest` 這個標籤。下面才是我們專案真正的做法：明確寫出 `mysql:8.4`。這在正式環境非常重要，因為 latest 會一直變動，哪天 MySQL 出了 9.0，我們的 latest 就悄悄升上去了，Spring Boot 的 driver 相容性可能直接出問題。
+先看第一個範例，`docker pull nginx`，沒有指定 tag，Docker 預設會抓 `latest` 這個標籤。下面才是我們專案真正的做法：明確寫出版本。這在正式環境非常重要，因為 latest 會一直變動，哪天上游出了大改版，我們的 latest 就悄悄升上去了，設定檔語法或行為可能直接不相容。
 
 ⚠️ 易錯點：很多同學誤以為 `latest` 代表「最新穩定版」，但 latest 只是「一個標籤名稱」，維護者想指到哪個版本都可以。專案一律鎖版本。
 
-另外注意 `eclipse-temurin:21-jre-alpine` 這個名字：temurin 是 Eclipse 基金會維護的 OpenJDK 發行版，`21` 是 Java 版本，`jre` 表示只有執行環境沒有編譯器，`alpine` 是很精簡的 Linux 發行版。光是選 jre 不選 jdk、選 alpine 不選一般版，Image 就可以從四百多 MB 降到一百多 MB。
+注意這裡抓了四個 Image，剛好兩兩一組：jdk 跟 node 是「編譯用」，jre 跟 nginx 是「執行用」。第四章的 multi-stage build 就是用編譯用的 Image 把程式 build 出來，最後只把成品放進執行用的 Image。
+
+另外看 `eclipse-temurin:21-jre-alpine` 這個名字：temurin 是 Eclipse 基金會維護的 OpenJDK 發行版，`21` 是 Java 版本，對應我們 build.gradle 裡 toolchain 的 21；`jre` 表示只有執行環境沒有編譯器；`alpine` 是很精簡的 Linux 發行版。光是選 jre 不選 jdk、選 alpine 不選一般版，Image 就可以從四百多 MB 降到一百多 MB。
 
 預期結果：執行完用 `docker images`，應該可以看到這幾個 Image 都躺在本機了。
 -->
@@ -242,25 +245,25 @@ docker pull registry-host:5000/myadmin/taskboard-api:1.0.0
 docker images
 
 # REPOSITORY        TAG               IMAGE ID       SIZE
-# taskboard-api     1.0.0             8f3c1a92be04   198MB
-# taskboard-api     latest            8f3c1a92be04   198MB
-# taskboard-web     1.0.0             2d47e5b310cc   52MB
-# mysql             8.4               a19b7c4d5e6f   612MB
-# eclipse-temurin   21-jre-alpine     71e0d3f8a1b2   187MB
+# ssds-api          1.0.0             8f3c1a92be04   480MB
+# ssds-api          latest            8f3c1a92be04   480MB
+# ssds-web          1.0.0             2d47e5b310cc   95MB
+# node              22-alpine         c1d2e3f4a5b6   160MB
+# eclipse-temurin   21-jre-alpine     71e0d3f8a1b2   195MB
 
 # 用 Image ID 刪除
 docker rmi 2d47e5b310cc
 
 # 用 repository:tag 刪除
-docker rmi taskboard-web:1.0.0
+docker rmi ssds-web:1.0.0
 ```
 
 <!--
 這頁把 images 跟 rmi 放在一起講，因為它們是一組「查看 → 清理」的操作。
 
-大家看這份清單，`taskboard-api` 的 `1.0.0` 跟 `latest` 兩列，IMAGE ID 都是 8f3c1a92be04，完全一樣——代表它們其實是同一份 Image，只是貼了兩張不同的標籤紙，就像同一道菜可以同時叫「今日特餐」跟「主廚推薦」，硬碟上只佔一份空間。
+大家看這份清單，`ssds-api` 的 `1.0.0` 跟 `latest` 兩列，IMAGE ID 都是 8f3c1a92be04，完全一樣——代表它們其實是同一份 Image，只是貼了兩張不同的標籤紙，就像同一道菜可以同時叫「今日特餐」跟「主廚推薦」，硬碟上只佔一份空間。
 
-也順便看一下大小：`taskboard-web` 只有 52MB，因為 Angular 打包出來就是一堆靜態檔案加上精簡版 nginx；`taskboard-api` 198MB，多出來的是 JRE；`mysql` 最肥，600 多 MB。這個大小差異在第四章講 multi-stage build 的時候會更有感覺。
+也順便看一下大小：`ssds-web` 不到 100MB，因為 Angular 打包出來只有約 2MB 的靜態檔案加上精簡版 nginx；`ssds-api` 將近 500MB，其中光是 ssds.jar 就快 100MB——我們的多模組專案帶了 Spring Boot、Apache POI、ICU4J 這些不小的套件，其餘是 JRE 與 Alpine。（Docker Desktop 的 SIZE 是解壓後佔用的硬碟空間；推到 Docker Hub 時傳輸的是壓縮後的大小，api 約 170MB、web 約 26MB。）這個大小差異在第四章講 multi-stage build 的時候會更有感覺。
 
 ⚠️ 易錯點：如果這個 Image 目前有 Container 正在使用（不管是執行中還是停止狀態），直接 `docker rmi` 會刪除失敗，要先把相關的 Container 刪掉，或加上 `-f` 強制刪除（但要小心使用）。
 
@@ -295,30 +298,30 @@ push 就是跟 pull 反過來，把我們本機做好的 Image 上傳到 Registr
 
 # docker push — 範例
 
-把本機建好的 `taskboard-api` 推到公司內部 Registry，完整流程如下：
+把本機建好的 `ssds-api` 推到公司內部 Registry，完整流程如下：
 
 ```bash
 # Step 1：登入 registry
 docker login registry-host:5000
 
 # Step 2：幫本機 Image 打上目標位置的 tag
-docker image tag taskboard-api:1.0.0 registry-host:5000/myadmin/taskboard-api:1.0.0
+docker image tag ssds-api:1.0.0 registry-host:5000/myadmin/ssds-api:1.0.0
 
 # Step 3：推送上去
-docker push registry-host:5000/myadmin/taskboard-api:1.0.0
+docker push registry-host:5000/myadmin/ssds-api:1.0.0
 
 # 一次推送這個 repository 的所有標籤版本
-docker push -a registry-host:5000/myadmin/taskboard-api
+docker push -a registry-host:5000/myadmin/ssds-api
 ```
 
 <!--
 這頁走一次完整的 push 流程，這也是實際工作上最常用到的組合技：tag + push。
 
-大家可以看到，我們不會直接把本機叫 `taskboard-api:1.0.0` 的 Image push 出去，而是要先用 `docker image tag` 幫它「重新貼一張標籤」，把目標 Registry 的位置寫進去，Docker 才知道這個 Image 該送去哪裡。沒有前綴的話，Docker 預設就是往 Docker Hub 送。
+大家可以看到，我們不會直接把本機叫 `ssds-api:1.0.0` 的 Image push 出去，而是要先用 `docker image tag` 幫它「重新貼一張標籤」，把目標 Registry 的位置寫進去，Docker 才知道這個 Image 該送去哪裡。沒有前綴的話，Docker 預設就是往 Docker Hub 送。
 
 實務上這幾行不會是人手動打的，而是寫在 CI 腳本裡：Gradle build 完 jar、docker build 出 Image、打上 commit 版本的 tag、push 上 registry，然後伺服器那端 pull 下來重啟。這整條線我們第八章會完整走一次。
 
-⚠️ 易錯點：`docker image tag` 不是「改名」，而是「新增一張標籤」，原本的 `taskboard-api:1.0.0` 還是會存在，本機會同時看到兩個名稱但指向同一個 Image ID。
+⚠️ 易錯點：`docker image tag` 不是「改名」，而是「新增一張標籤」，原本的 `ssds-api:1.0.0` 還是會存在，本機會同時看到兩個名稱但指向同一個 Image ID。
 
 預期結果：push 成功後，到 Docker Hub 或自己架設的 Registry 網頁上，應該就能看到剛剛上傳的這個 repository 跟 tag。
 -->
@@ -371,11 +374,11 @@ Docker Hub 提供的核心功能：
 
 | 命名方式 | 範例 | 用途 |
 | --- | --- | --- |
-| 語意化版本 | `taskboard-api:1.4.2` | 明確標示版本號，正式環境首選 |
-| 主版本簡寫 | `taskboard-api:1.4`、`taskboard-api:1` | 允許在小版本內自動更新 |
-| latest | `taskboard-api:latest` | 預設標籤，不建議在正式環境依賴它 |
-| 環境標籤 | `taskboard-api:staging`、`taskboard-api:prod` | 依部署環境區分 |
-| Commit / 建置編號 | `taskboard-api:git-a1b2c3d` | 精確對應到某一次程式碼版本，方便追蹤 |
+| 語意化版本 | `ssds-api:1.4.2` | 明確標示版本號，正式環境首選 |
+| 主版本簡寫 | `ssds-api:1.4`、`ssds-api:1` | 允許在小版本內自動更新 |
+| latest | `ssds-api:latest` | 預設標籤，不建議在正式環境依賴它 |
+| 環境標籤 | `ssds-api:staging`、`ssds-api:prod` | 依部署環境區分 |
+| Commit / 建置編號 | `ssds-api:git-a1b2c3d` | 精確對應到某一次程式碼版本，方便追蹤 |
 
 <!--
 這頁是整個 Tag 命名規則的重點，也是我們實際團隊合作時最容易吵架的地方，一定要花時間講清楚。
@@ -391,22 +394,22 @@ Docker Hub 提供的核心功能：
 
 # Tag 命名 — 實際範例
 
-TaskBoard 後端發布一個新版本的完整流程：
+SSDS 後端發布一個新版本的完整流程：
 
 ```bash
-# 在 taskboard-api/ 目錄下建置 Image（Dockerfile 第四章會寫）
-docker build -t taskboard-api:latest .
+# 在 ai-products-selection-backend/ 目錄下建置 Image（Dockerfile 第四章會寫）
+docker build -t ssds-api:latest .
 
 # 同時貼上不同精細度的版本 tag
-docker image tag taskboard-api:latest taskboard-api:1.4.2
-docker image tag taskboard-api:latest taskboard-api:1.4
+docker image tag ssds-api:latest ssds-api:1.4.2
+docker image tag ssds-api:latest ssds-api:1.4
 
 # 推送到 Docker Hub（帳號為 myaccount）
-docker image tag taskboard-api:latest myaccount/taskboard-api:1.4.2
-docker push myaccount/taskboard-api:1.4.2
+docker image tag ssds-api:latest myaccount/ssds-api:1.4.2
+docker push myaccount/ssds-api:1.4.2
 
-# 一次推送所有本機的 taskboard-api 標籤
-docker push -a myaccount/taskboard-api
+# 一次推送所有本機的 ssds-api 標籤
+docker push -a myaccount/ssds-api
 ```
 
 <!--
@@ -416,7 +419,7 @@ docker push -a myaccount/taskboard-api
 
 順帶一提，這個 `1.4.2` 從哪裡來？實務上通常就是 `build.gradle` 裡面 `version = '1.4.2'` 那一行，CI 腳本讀出來直接當 tag 用，程式碼版本跟 Image 版本就永遠對得起來。
 
-⚠️ 易錯點：推送到 Docker Hub 時，Image 名稱前面一定要帶帳號或組織名稱（例如 `myaccount/taskboard-api`），不然 Docker 會預設當作要推去 Docker 官方的命名空間，直接被拒絕。
+⚠️ 易錯點：推送到 Docker Hub 時，Image 名稱前面一定要帶帳號或組織名稱（例如 `myaccount/ssds-api`），不然 Docker 會預設當作要推去 Docker 官方的命名空間，直接被拒絕。
 
 預期結果：推送完成後，到 Docker Hub 網站上該帳號的 Repository 頁面，應該能同時看到 `1.4.2` 和 `1.4` 兩個 tag。
 -->
@@ -425,21 +428,21 @@ docker push -a myaccount/taskboard-api
 layout: default
 ---
 
-# 練習 1：準備 TaskBoard 的基礎 Image
+# 練習 1：準備 SSDS 的基礎 Image
 ### 任務說明
 
-我們要把 TaskBoard 後面幾章需要的基礎 Image 先準備好。請完成以下操作：
+我們要把 SSDS 後面幾章需要的基礎 Image 先準備好。請完成以下操作：
 
-1. 從 Docker Hub 下載 `eclipse-temurin` 的 `21-jre-alpine` 版本（之後用來跑 `taskboard-api.jar`）
+1. 從 Docker Hub 下載 `eclipse-temurin` 的 `21-jre-alpine` 版本（之後用來跑 `ssds.jar`）
 2. 用 `docker images` 確認本機已經有這個 Image，並記下它的 IMAGE ID 與大小
-3. 幫這個 Image 新增一個標籤，命名為 `taskboard-runtime:v1`
-4. 刪除原本的 `eclipse-temurin:21-jre-alpine` 標籤（保留 `taskboard-runtime:v1`）
-5. 再執行一次 `docker images`，確認 `taskboard-runtime:v1` 還在，而且 IMAGE ID 跟第 2 步記下的一樣
+3. 幫這個 Image 新增一個標籤，命名為 `ssds-runtime:v1`
+4. 刪除原本的 `eclipse-temurin:21-jre-alpine` 標籤（保留 `ssds-runtime:v1`）
+5. 再執行一次 `docker images`，確認 `ssds-runtime:v1` 還在，而且 IMAGE ID 跟第 2 步記下的一樣
 
 <!--
 這一題是基本功練習，檢驗大家對 pull / images / tag / rmi 四個指令的熟練度，順便把第四章要用的 runtime Image 先抓下來。
 
-引導思考：大家覺得如果直接刪除 `eclipse-temurin:21-jre-alpine`，剛剛貼的 `taskboard-runtime:v1` 會不會也一起消失？想想看 Image ID 跟 tag 之間的關係。第 5 步就是要大家自己驗證這件事。
+引導思考：大家覺得如果直接刪除 `eclipse-temurin:21-jre-alpine`，剛剛貼的 `ssds-runtime:v1` 會不會也一起消失？想想看 Image ID 跟 tag 之間的關係。第 5 步就是要大家自己驗證這件事。
 -->
 
 ---
@@ -452,9 +455,9 @@ layout: default
 ```bash
 docker pull eclipse-temurin:21-jre-alpine
 docker images                       # 記下 IMAGE ID，約 187MB
-docker image tag eclipse-temurin:21-jre-alpine taskboard-runtime:v1
+docker image tag eclipse-temurin:21-jre-alpine ssds-runtime:v1
 docker rmi eclipse-temurin:21-jre-alpine
-docker images                       # taskboard-runtime:v1 還在，ID 不變
+docker images                       # ssds-runtime:v1 還在，ID 不變
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
@@ -464,21 +467,21 @@ docker images                       # taskboard-runtime:v1 還在，ID 不變
 <!--
 公布解答，順便解釋第 4 步背後的原理。
 
-⚠️ 這題最容易錯的地方，是同學會擔心「刪掉 eclipse-temurin 會不會連 taskboard-runtime:v1 也一起不見」，答案是不會。反過來說，如果最後一個 tag 也被刪掉，那份 Image 才會真的從硬碟上消失。
+⚠️ 這題最容易錯的地方，是同學會擔心「刪掉 eclipse-temurin 會不會連 ssds-runtime:v1 也一起不見」，答案是不會。反過來說，如果最後一個 tag 也被刪掉，那份 Image 才會真的從硬碟上消失。
 
-預期結果：最後一次 `docker images` 只會看到 `taskboard-runtime:v1`，看不到 `eclipse-temurin`，但兩者的 IMAGE ID 完全相同。
+預期結果：最後一次 `docker images` 只會看到 `ssds-runtime:v1`，看不到 `eclipse-temurin`，但兩者的 IMAGE ID 完全相同。
 -->
 
 ---
 layout: default
 ---
 
-# 練習 2：發布 taskboard-api 到私有 Registry
+# 練習 2：發布 ssds-api 到私有 Registry
 ### 任務說明
 
-TaskBoard 後端修完一批 bug，要發布 `2.0.0` 版到公司內部的私有 Registry（位址 `registry-host:5000`，命名空間 `myadmin`）：
+SSDS 後端修完一批 bug，要發布 `2.0.0` 版到公司內部的私有 Registry（位址 `registry-host:5000`，命名空間 `myadmin`）：
 
-1. 本機已經有一個建置好的 Image，叫做 `taskboard-api:latest`
+1. 本機已經有一個建置好的 Image，叫做 `ssds-api:latest`
 2. 幫它同時貼上 `2.0.0` 與 `2.0` 兩種精細度的版本標籤，並加上正確的 Registry 位置前綴
 3. 登入該 Registry
 4. 把 `2.0.0` 這個版本推送上去
@@ -503,18 +506,18 @@ layout: default
 
 ```bash
 # 貼上兩種精細度的版本標籤，並加上 registry 前綴
-docker image tag taskboard-api:latest registry-host:5000/myadmin/taskboard-api:2.0.0
-docker image tag taskboard-api:latest registry-host:5000/myadmin/taskboard-api:2.0
+docker image tag ssds-api:latest registry-host:5000/myadmin/ssds-api:2.0.0
+docker image tag ssds-api:latest registry-host:5000/myadmin/ssds-api:2.0
 
 # 登入私有 registry
 docker login registry-host:5000
 
 # 推送指定版本
-docker push registry-host:5000/myadmin/taskboard-api:2.0.0
+docker push registry-host:5000/myadmin/ssds-api:2.0.0
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>提示：</b> 想把 2.0.0 跟 2.0 一次推送完，可以改用 <code>docker push -a registry-host:5000/myadmin/taskboard-api</code>。第 5 小題：測試環境抓 <code>2.0</code>（自動吃到修補版），正式環境鎖 <code>2.0.0</code>（版本完全固定）。
+💡 <b>提示：</b> 想把 2.0.0 跟 2.0 一次推送完，可以改用 <code>docker push -a registry-host:5000/myadmin/ssds-api</code>。第 5 小題：測試環境抓 <code>2.0</code>（自動吃到修補版），正式環境鎖 <code>2.0.0</code>（版本完全固定）。
 </div>
 
 <!--
@@ -522,7 +525,7 @@ docker push registry-host:5000/myadmin/taskboard-api:2.0.0
 
 ⚠️ 易錯點提醒：Image 名稱前面一定要完整帶上 `registry-host:5000/myadmin/` 這串前綴，這是 Docker 用來判斷「要推去哪個 Registry、哪個帳號底下」的依據，漏掉就會推錯地方或直接失敗。
 
-預期結果：登入成功、推送完成後，去該 Registry 的網頁介面應該能看到 `my-app` 這個 repository，底下有 `2.0.0` 這個 tag。
+預期結果：登入成功、推送完成後，去該 Registry 的網頁介面應該能看到 `ssds-api` 這個 repository，底下有 `2.0.0` 這個 tag。
 -->
 
 ---

@@ -8,6 +8,7 @@ drawings:
 transition: slide-left
 title: Docker 容器化課程
 routeAlias: home
+zoom: 0.82
 style: |
   .slidev-layout p,
   .slidev-layout li,
@@ -34,8 +35,8 @@ style: |
 <style>
 .chapter-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1rem;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.8rem;
   width: 100%;
   max-width: 960px;
   margin-top: 1.2rem;
@@ -45,7 +46,7 @@ style: |
   background: #f0faf9;
   border: 2px solid #5eada0;
   border-radius: 12px;
-  padding: 1.2rem 0.8rem;
+  padding: 0.9rem 0.5rem;
   text-decoration: none !important;
   color: #1a5c5c !important;
   transition: all 0.2s ease;
@@ -65,7 +66,7 @@ style: |
   margin-bottom: 0.3rem;
 }
 .chapter-subtitle {
-  font-size: max(13px, 0.88rem);
+  font-size: max(12px, 0.8rem);
   color: #4a7c7c;
   margin-top: 0.3rem;
 }
@@ -114,8 +115,13 @@ style: |
     </Link>
     <Link to="ch08" class="chapter-card">
       <div class="chapter-num">Ch 8</div>
-      <div>部署實戰</div>
-      <div class="chapter-subtitle">production / health check / limits</div>
+      <div>上線前準備</div>
+      <div class="chapter-subtitle">.env / tag / Docker Hub / 512MB</div>
+    </Link>
+    <Link to="ch09" class="chapter-card">
+      <div class="chapter-num">Ch 9</div>
+      <div>雲端部署</div>
+      <div class="chapter-subtitle">Render / GitHub Actions / 免費免綁卡</div>
     </Link>
   </div>
 </div>
@@ -150,4 +156,8 @@ src: ./ch07-volume.md
 
 ---
 src: ./ch08-deploy.md
+---
+
+---
+src: ./ch09-cloud-deploy.md
 ---

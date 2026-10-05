@@ -6,7 +6,7 @@ lineNumbers: true
 drawings:
   persist: false
 transition: slide-left
-title: 部署實戰
+title: 上線前準備
 routeAlias: ch08
 style: |
   .slidev-layout p,
@@ -33,22 +33,22 @@ style: |
 
 <div class="flex flex-col justify-center items-center h-full" style="background: #ffffff;">
   <p style="color: #5eada0; font-size: 1rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 1.2rem;">Docker 容器化課程</p>
-  <h1 style="color: #1a5c5c; font-size: 3.8rem; font-weight: 900; line-height: 1.15; margin-bottom: 1.5rem;">部署實戰</h1>
+  <h1 style="color: #1a5c5c; font-size: 3.8rem; font-weight: 900; line-height: 1.15; margin-bottom: 1.5rem;">上線前準備</h1>
   <div style="height: 4px; width: 320px; background: linear-gradient(90deg, #5eada0, #a7d9d0); border-radius: 2px; margin-bottom: 1.5rem;"></div>
   <p style="color: #4a7c7c; font-size: 1.15rem; font-style: italic;">
-    「從寫在自己電腦上的程式，到讓全世界都能拉下來跑的 image」
+    「機密不落地、版本可追溯、記憶體有邊界」
   </p>
   <Link to="home" style="margin-top: 2rem; color: #5eada0; font-size: 0.9rem;">← 返回目錄</Link>
 </div>
 
 <!--
-大家好，歡迎來到最後一章「部署實戰」。
+大家好，歡迎來到第八章「上線前準備」。
 
-前面七章我們已經學會怎麼寫 Dockerfile、怎麼用 Compose 組合多個服務、怎麼設定網路和 Volume。這一章要把這些技能兜在一起，聊聊「怎麼把東西送到正式環境（production）」這件事。
+前面七章我們已經把 SSDS 前後端都包成 image、用 Compose 串起來、處理好網路和上傳檔案的持久化。下一章就要部署到雲端了，但在那之前，還有幾件事一定要先在本機做好。
 
-為什麼要學這個？因為在自己電腦上 `docker compose up` 能跑，跟能安全地部署到伺服器上讓別人用，中間還隔著三件事：怎麼管理設定與密碼、怎麼幫每個版本的 image 做好標記、怎麼把 image 送到大家都能取用的地方。這三件事就是今天的主軸。
+為什麼？因為在自己電腦上 `docker compose up` 能跑，跟能安全地放到雲端讓別人用，中間還隔著幾件事：機密值怎麼管理才不會外洩、怎麼幫每個版本的 image 做好標記、怎麼把 image 送到雲端平台拉得到的地方，以及——免費雲端方案只有 512MB 記憶體，我們的 Spring Boot 撐不撐得住。
 
-學完這章，大家應該能夠自己寫出一份不會外洩密碼的 .env、幫專案訂出一套 tag 命名規則，並且知道 CI/CD 大概在做什麼、怎麼把 image push 上 registry。
+學完這章，大家手上會有推到 Docker Hub 的兩個 image，而且已經在本機模擬過免費方案的記憶體限制，第九章就能直接上線。
 -->
 
 ---
@@ -57,22 +57,22 @@ layout: default
 
 # Outline
 
-- **環境變數管理與 .env**
+- **環境變數管理與 .env** — 機密值永遠不進 Image、不進 Git
 - **Image 版本控制與 Tag 策略**
-- **CI/CD 概念與推送至 Registry**
-- **練習題**
-- **總結：課程回顧**
+- **推送至 Docker Hub** — 注意 CPU 架構（amd64）
+- **正式環境加固** — 健康檢查、自動重啟、**模擬 512MB 免費方案**
+- **練習題 / 總結**
 
 <!--
-今天分成三大部分。
+今天分成四大部分，全部都是「部署到雲端之前」要先在本機準備好的事。
 
 第一部分講環境變數跟 .env 檔，這是部署前最容易踩雷的地方，很多資安事件都是密碼不小心被 commit 上去造成的。
 
 第二部分講 image 的版本控制，也就是 tag 策略，讓我們知道現在跑的到底是哪一版程式碼。
 
-第三部分講 CI/CD 的基本概念，還有怎麼把做好的 image 推送到 Registry（倉庫）上，讓其他機器可以拉下來用。
+第三部分把 image 推到 Docker Hub，第九章有一種部署方式就是讓雲端平台直接從 Docker Hub 拉 image。
 
-最後會有兩題練習，還有整個八章課程的總回顧。大家準備好了嗎，我們開始吧。
+第四部分是正式環境加固，特別是記憶體：免費雲端方案通常只有 512MB，Spring Boot 很容易爆掉，我們先在本機模擬一次。
 -->
 
 ---
@@ -85,37 +85,37 @@ class: flex flex-col justify-center items-center text-center
 <!--
 先進入第一部分。大家有沒有遇過這種情況：程式碼裡直接寫死了資料庫密碼、API 金鑰，結果不小心把整包程式 commit 上 GitHub，密碼就這樣公開給全世界看？
 
-這一部分我們就是要解決這個問題，學會用 .env 檔案把「設定」跟「程式碼」分開管理。
+SSDS 的 .env 裡有 Supabase 密碼、Mistral API key、Apify token，每一個外洩都會直接造成損失——Mistral 跟 Apify 是用量計費的。
 -->
 
 ---
+zoom: 0.9
+---
 
-# 什麼是 .env 檔？
+# SSDS 的兩種 .env
 
-「.env 檔」是一個純文字檔，用來存放環境變數（environment variables），把資料庫密碼、API 金鑰這類會因環境（開發／測試／正式）而不同的設定，跟主程式碼分開管理。
-
-Docker Compose 官方文件說明：**「路徑是相對於 compose.yaml 檔案的位置」**——`.env` 通常放在跟 `compose.yaml` 同一層目錄。
+| | 後端 `.env` | Compose 層 `.env` |
+| --- | --- | --- |
+| 位置 | `ai-products-selection-backend/.env` | `ai-products-selection/.env`（跟 compose.yaml 同層） |
+| 用途 | 給 **Spring Boot 容器**的環境變數 | 給 **compose.yaml 本身**做 `${}` 文字替換 |
+| 怎麼進容器 | `env_file:` / `docker run --env-file` | 只有在 `environment:` 明確引用才會進容器 |
+| 內容 | `SSDS_DB_*`、`MISTRAL_API_KEY`、`SSDS_JWT_SECRET`… | `SSDS_VERSION`、`DOCKERHUB_USER` |
+| 進版控？ | ❌（專案已有 `.env.example` 當範本） | ❌（另附 `.env.example`） |
 
 ```bash
-# .env（放在 compose.yaml 同一層）
-MYSQL_ROOT_PASSWORD=rootpw
-MYSQL_PASSWORD=apppw
-SPRING_PROFILES_ACTIVE=prod
-TASKBOARD_VERSION=1.0.0
+# ai-products-selection/.env（Compose 層）
+SSDS_VERSION=1.0.0
+DOCKERHUB_USER=myaccount
 ```
 
-<div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>小提醒：</b> .env 用 KEY=VALUE 格式，一行一個變數，沒有引號也沒有分號。
-</div>
-
 <!--
-大家先记住這個類比：.env 就是我們的隨身小包，重要但敏感的東西放這裡，跟主程式（大行李）分開走。
+SSDS 會同時出現兩個 .env，這是大家最容易搞混的地方，先講清楚。
 
-為什麼要分開？因為程式碼通常會進版本控制（Git），但密碼、金鑰這種東西一旦進了 Git 歷史紀錄，就很難徹底清除，就算之後刪掉檔案，舊的 commit 紀錄裡還是找得到。
+左邊是後端專案原本就有的 .env，裡面是 Spring Boot 要讀的機密值。Spring Boot 自己會讀它（application.properties 的 spring.config.import），容器裡則是靠 env_file 或 --env-file 帶進去。專案已經有一份 .env.example 當範本、而且 .gitignore 已經排除 .env，這是很好的習慣。
 
-⚠️ 這裡先預告一個等一下會再三強調的重點：.env 檔絕對不要 commit 進版控，等一下的注意事項會細講怎麼避免。
+右邊是 Compose 的 .env：放在 compose.yaml 同一層，Compose 啟動時會自動讀它，用來替換 compose.yaml 裡的 ${SSDS_VERSION} 這種佔位符。它本身不會變成容器的環境變數。
 
-範例裡放的就是 TaskBoard 前面幾章一直寫死在 compose.yaml 裡的那些值：資料庫密碼、Spring 的 profile、還有 image 版本號。前面幾章為了教學方便直接寫死，這一章我們要把它們全部搬出來。
+⚠️ Docker Compose 官方文件：「路徑是相對於 compose.yaml 檔案的位置」。所以 Compose 層的 .env 一定要跟 compose.yaml 放一起。
 -->
 
 ---
@@ -124,107 +124,93 @@ TASKBOARD_VERSION=1.0.0
 
 | 用法 | 語法 | 說明 |
 | --- | --- | --- |
-| `environment`（映射語法）| `DEBUG: "true"` | 直接寫死在 compose.yaml |
-| `environment`（列表語法）| `- DEBUG=true` | 同上，另一種寫法 |
-| `env_file` | `env_file: "webapp.env"` | 指定外部檔案載入整批變數 |
-| 插值引用 | `- DEBUG=${DEBUG}` | 從 .env 或 shell 讀值代入 |
-| 命令列臨時覆蓋 | `docker compose run -e DEBUG=1 web` | 執行當下才決定的值 |
+| `environment`（映射語法）| `SPRING_PROFILES_ACTIVE: prod` | 直接寫死在 compose.yaml（非機密值可以） |
+| `env_file` | `env_file: ./ai-products-selection-backend/.env` | 指定外部檔案載入整批變數 |
+| 插值引用 | `image: ${DOCKERHUB_USER}/ssds-api:${SSDS_VERSION}` | 從 Compose 層 `.env` 或 shell 讀值代入 |
+| 預設值 | `${SSDS_VERSION:-1.0.0}` | 沒設定時用預設值 |
+| 必填檢查 | `${DOCKERHUB_USER:?請在 .env 設定}` | 沒設定就直接報錯，不默默代入空字串 |
 
 <!--
 這張表整理了在 compose.yaml 裡設定環境變數的幾種方式。
 
-最直接的是用 environment 屬性，可以用映射（key: value）或列表（- key=value）兩種語法，效果一樣，看團隊習慣選一種。
+非機密的值（例如 profile）直接寫在 environment 沒關係；一大批機密值用 env_file 指到外部檔案；compose.yaml 本身要隨環境變化的地方（例如 image 版本）用 ${} 插值。
 
-如果變數很多，建議用 env_file 指到外部檔案，這樣 compose.yaml 本身乾淨清爽，也方便針對不同環境（開發/正式）切換不同的 env 檔。
-
-插值語法 ${DEBUG} 則是讓 compose.yaml 去讀取 .env 檔或當下 shell 環境的值，這個很常用在「同一份 compose.yaml，不同環境跑不同設定」的情境。
-
-⚠️ 易錯點：env_file 是 Docker Compose CLI 才有的插值功能，如果是單純用 `docker run --env-file`，語法規則不完全一樣，大家換工具時要留意。
+最後兩列很實用：:- 給預設值；:? 是「沒設定就報錯」，避免 Compose 找不到變數時默默代入空字串——空字串的 image 名稱或密碼，錯誤訊息會非常難懂。
 -->
 
 ---
 
 # .env 用法 — 範例
 
-把 TaskBoard 的 compose.yaml 改成完全不含密碼的版本：
+把 SSDS 的 compose.yaml 改成「可以安心進版控、換版本只改 .env」的版本：
 
 ```yaml
-# compose.yaml — 這份可以安心進版控
+# ai-products-selection/compose.yaml — 這份裡面沒有任何機密
+name: ssds
 services:
-  web:
-    image: myaccount/taskboard-web:${TASKBOARD_VERSION}
-    ports: ["8080:80"]
   api:
-    image: myaccount/taskboard-api:${TASKBOARD_VERSION}
+    image: ${DOCKERHUB_USER:?}/ssds-api:${SSDS_VERSION:-1.0.0}
+    build: ./ai-products-selection-backend
+    env_file: ./ai-products-selection-backend/.env
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/taskboard
-      SPRING_DATASOURCE_USERNAME: appuser
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}
-  db:
-    image: mysql:8.4
+      SPRING_PROFILES_ACTIVE: prod
+    # ports / volumes / healthcheck 沿用第五、七章
+  web:
+    image: ${DOCKERHUB_USER:?}/ssds-web:${SSDS_VERSION:-1.0.0}
+    build: ./ai-products-selection-frontend
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: taskboard
-      MYSQL_USER: appuser
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-    volumes: [db-data:/var/lib/mysql]
+      API_URL: http://api:8080
+    # ports / depends_on 沿用第五章
+```
 
-volumes:
-  db-data:
+```bash
+docker compose config     # 印出變數展開後的完整設定，檢查 ${} 有沒有代入成功
 ```
 
 <!--
-這張是範例頁，帶大家看一次完整做法。對照第五章那份 compose.yaml，差別就是所有敏感值都換成了 ${} 插值。
+這張是範例頁。對照第五章那份 compose.yaml，差別有兩個：
 
-Compose 會自動去讀同一層目錄的 .env，把 ${MYSQL_PASSWORD} 這種佔位符換成實際的值。所以這份 compose.yaml 現在完全不含密碼，可以放心 commit 進 Git、可以貼在文件裡、可以給任何人看。
+第一，image 名稱改成 ${DOCKERHUB_USER}/ssds-api:${SSDS_VERSION}。這樣 docker compose build 出來的 image 直接就是可以推到 Docker Hub 的完整名稱；要升版或回滾，只要改 Compose 層 .env 裡的一行版本號。
 
-⚠️ 請大家注意一個很重要的區別，這是最多人搞混的：.env 裡的變數是給「Compose 檔案本身」做文字替換用的，不會自動變成容器裡的環境變數。api 服務之所以拿得到密碼，是因為我們在 environment 區塊明確寫了 SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}。如果只在 .env 裡寫了某個變數，卻沒在 environment 裡引用它，容器裡是看不到那個變數的。
+第二，整份檔案沒有任何密碼。機密值都在後端 .env，靠 env_file 帶進去。所以這份 compose.yaml 可以放心 commit、貼在文件裡、給任何人看。
 
-另外看 image 那行：版本號也用了 ${TASKBOARD_VERSION}。這樣要升版或回滾，只要改 .env 裡的一行版本號，再 docker compose up -d 就好，compose.yaml 完全不用動。這是實務上很常見的做法。
-
-預期結果：docker compose up 之後，用 docker compose exec api env | grep SPRING 可以看到密碼確實被注入容器了，但 compose.yaml 裡沒有任何一個明文密碼。
+docker compose config 會把所有 ${} 展開之後印出來，變數有沒有讀到、讀到什麼值，一目了然。⚠️ 但 env_file 的內容也會被展開印出來，包含密碼，不要在共用螢幕或錄影時打。
 -->
 
+---
+zoom: 0.92
 ---
 
 # 使用 .env 的注意事項
 
-Docker Compose 官方最佳實踐明確提到：**「Be cautious about including sensitive data in environment variables. Consider using Secrets for managing sensitive information.」**（謹慎處理環境變數中的敏感資料，考慮改用 Secrets 管理）
-
-```bash
-# .gitignore
-.env
-*.env.local
-taskboard-api/src/main/resources/application-local.yml
-```
-
-```bash
-# .env.example — 這份要進版控，只寫欄位不寫真值
-MYSQL_ROOT_PASSWORD=
-MYSQL_PASSWORD=
-SPRING_PROFILES_ACTIVE=prod
-TASKBOARD_VERSION=1.0.0
-```
-
-<div class="mt-4 p-3 bg-red-50 border-l-4 border-red-400 text-gray-700 text-sm text-left">
-⚠️ <b>絕對不要把 .env commit 進 Git！</b> 一旦密碼進了版控歷史，就算之後刪除檔案，舊 commit 裡還是找得到，等於永久外洩。
+<div class="mt-2 p-3 bg-red-50 border-l-4 border-red-400 text-gray-700 text-sm text-left">
+⚠️ <b>機密值只能在「執行時」給：</b> 不要寫進 Dockerfile 的 <code>ENV</code> / <code>ARG</code>，也不要 COPY 進 image — image 會被推到 Docker Hub，<code>docker history</code> 與解開 layer 都看得到。
 </div>
 
-<div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>建議做法：</b> 專案裡放一份 `.env.example`（只寫欄位名稱，不寫真實值），讓團隊成員知道要設定哪些變數，真正的 `.env` 由每個人自己建立、絕不進版控。
-</div>
+| 檢查項目 | SSDS 現況 / 做法 |
+| --- | --- |
+| `.gitignore` 排除 `.env` | 後端已排除 ✅；Compose 層的 `.env` 也要加 |
+| `.dockerignore` 排除 `.env` | 第四章已加 ✅ |
+| 提供 `.env.example` | 後端已有 ✅（只寫欄位與說明，不寫真值） |
+| **`SSDS_JWT_SECRET`** | 預設值是 `dev-only-insecure-secret...`，**上線一定要設成自己的亂數**（≥ 32 bytes） |
+| 外洩了怎麼辦 | 從 Git 刪掉不夠 — **直接到 Supabase / Mistral / Apify 換掉那組金鑰** |
+
+```bash
+# 產生一組 JWT secret（任選一種）
+openssl rand -base64 48
+docker run --rm alpine sh -c "head -c 48 /dev/urandom | base64"
+```
 
 <!--
-這頁是這個部分最重要的提醒，一定要講清楚。
+這頁是這個部分最重要的提醒。
 
-生活比喻延續前面：隨身小包很重要，但如果我們把小包的內容物拍照發到公開社群，那跟沒分開放也沒兩樣。.env 就算跟程式碼分開放在同一個資料夾，只要它進了 Git，效果就跟寫死在程式碼裡一樣糟。
+第一個紅框：機密值只能在執行時給。有些同學會想「那我在 Dockerfile 寫 ENV SSDS_DB_PASSWORD=xxx，不就不用每次帶 --env-file 了？」千萬不要。image 會推到 Docker Hub，ENV 的值用 docker inspect 就看得到；ARG 的值會留在 docker history 裡。
 
-⚠️ 大家一定要在專案一開始就把 .env 加進 .gitignore，養成習慣，不要等到不小心 commit 了才補救。
+表格是 SSDS 的檢查清單，大部分專案已經做得很好了。特別要注意 SSDS_JWT_SECRET：application.properties 裡給了一個 dev-only 的預設值。部署到雲端如果沒設，任何看過我們原始碼的人都能用這個預設值偽造登入 token。上線一定要設成自己產生的亂數。
 
-另外官方也建議，真正機密的東西（像是正式環境的資料庫密碼）不要只靠環境變數，更進階的做法是用 Docker Secrets 這類專門的機密管理機制，環境變數比較適合非機密、或是開發測試用的設定。
+最後一列：如果密碼真的不小心 commit 了，光是從 Git 刪掉、加 .gitignore 是沒用的，舊 commit 裡還找得到。最正確的做法是直接把那組金鑰作廢重發，因為它已經外洩了。
 
-實務上團隊常見做法是放一份 .env.example 當範本，這個檔案可以進版控，因為裡面沒有真的密碼，只有告訴大家「這裡需要填 DB_PASSWORD」這種欄位提示。
+第二個指令示範「容器當工具」：電腦沒有 openssl 的話，用 alpine 容器產生亂數，跟第七章借 pg_dump 是同樣的概念。
 -->
 
 ---
@@ -248,22 +234,20 @@ Docker image 的 tag 也是同樣的道理，這一部分我們就來聊聊怎�
 
 只用預設的 `latest` tag，無法辨識正式環境跑的是哪個版本，也無法回滾（rollback）到「上一個能動的版本」。
 
-「Tag（標籤）」是幫 image 每一個版本貼上可辨識名字的機制，格式為 `NAME[:TAG]`，例如 `my-app:1.2.0`。Docker 官方建構最佳實踐提醒：**tag 是「可變的」（mutable）**——同一個 tag 隨時可能被覆蓋成不同內容的 image，這也是版本策略重要的原因。
+「Tag（標籤）」是幫 image 每一個版本貼上可辨識名字的機制，格式為 `NAME[:TAG]`，例如 `ssds-api:1.2.0`。Docker 官方建構最佳實踐提醒：**tag 是「可變的」（mutable）**——同一個 tag 隨時可能被覆蓋成不同內容的 image，這也是版本策略重要的原因。
 
 ```bash
-docker image tag taskboard-api:latest taskboard-api:1.2.0
+docker image tag ssds-api:latest ssds-api:1.2.0
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>批號類比：</b> tag 就像出貨批號，讓我們知道「現在正式環境跑的，究竟是哪一批貨」。
+💡 <b>批號類比：</b> tag 就像出貨批號，讓我們知道「現在雲端上跑的，究竟是哪一批貨」。
 </div>
 
 <!--
-這張是概念定義頁。核心就是那句「tag 是可變的」——這句話很重要，代表同一個名字（例如 nginx:3.21）今天指到的內容，跟三個月後可能不一樣，因為原作者可能重新推送覆蓋了同一個 tag。
+這張是概念定義頁。核心就是那句「tag 是可變的」——這句話很重要，代表同一個名字今天指到的內容，跟三個月後可能不一樣，因為有人可能重新推送覆蓋了同一個 tag。
 
 批號的類比再強調一次：出貨如果沒貼批號，出了問題根本沒辦法追查、也沒辦法只回收有問題的那一批。Image 也一樣，沒有清楚的版本標記，出問題想回滾都不知道要滾到哪一版。
-
-⚠️ 易錯點：很多初學者以為 tag 是「固定不變」的版本號，其實不是，除非搭配 digest（下一頁會提到），否則 tag 本質上只是一個可以被覆蓋的指標。
 -->
 
 ---
@@ -281,10 +265,6 @@ docker image tag taskboard-api:latest taskboard-api:1.2.0
 <!--
 這張表整理了如果一直依賴 latest 這個預設 tag，在正式環境會遇到的具體風險。
 
-大家看第一列，latest 完全無法告訴我們現在跑的是哪個版本，因為每次 build 都可能覆蓋掉 latest 指向的內容。
-
-第二列更嚴重，一旦正式環境出包想回滾，如果只靠 latest，我們根本不知道「上一個能動的版本」是什麼，因為它已經被新的 latest 蓋掉了。
-
 ⚠️ 特別提醒：latest 不是「最新穩定版」的意思，它只是 Docker 沒有指定 tag 時的預設名稱，跟「穩定」、「推薦」完全沒有關係，這是很多新手會誤會的地方。
 -->
 
@@ -292,39 +272,36 @@ docker image tag taskboard-api:latest taskboard-api:1.2.0
 
 # Tag 命名策略 — 範例
 
-用語意化版號（Semantic Versioning，`主版本.次版本.修訂版本`）搭配環境標記：
+用語意化版號（Semantic Versioning，`主版本.次版本.修訂版本`）搭配 git commit hash：
 
 ```bash
-# 修好任務刪除的 bug，只加修訂版本
-docker build -t taskboard-api:1.2.1 ./taskboard-api
+# 修好商品圖片排序的 bug，只加修訂版本
+docker build -t myaccount/ssds-api:1.0.1 ./ai-products-selection-backend
 
-# 新增「任務標籤」功能，加次版本
-docker build -t taskboard-api:1.3.0 ./taskboard-api
+# 新增「選品報表匯出」功能，加次版本
+docker build -t myaccount/ssds-api:1.1.0 ./ai-products-selection-backend
 
-# 同時打上多個 tag：版本號 + git commit hash + 環境
-docker build -t taskboard-api:1.3.0 \
-  -t taskboard-api:$(git rev-parse --short HEAD) \
-  -t taskboard-api:staging ./taskboard-api
+# 同時打上多個 tag：版本號 + git commit hash
+docker build -t myaccount/ssds-api:1.1.0 \
+  -t myaccount/ssds-api:$(git -C ai-products-selection-backend rev-parse --short HEAD) \
+  ./ai-products-selection-backend
 ```
 
 更保險的做法：搭配 digest（映像的內容雜湊值）鎖定版本，即使 tag 被覆蓋也不受影響：
 
-```dockerfile
-FROM eclipse-temurin:21-jre-alpine@sha256:a8560b36e8b8210634f77d9f7f9efd7ffa463e380b75e2e74aff4511df3ef88c
+```bash
+docker image inspect --format '{{index .RepoDigests 0}}' myaccount/ssds-api:1.1.0
+# myaccount/ssds-api@sha256:4b1c...e9
 ```
 
 <!--
 這頁帶大家看實際的 tag 命名範例。
 
-語意化版號就是 SemVer，格式是主版本.次版本.修訂版本。修 bug 只加最後一碼，加新功能加中間一碼，有破壞相容性的改動才加第一碼。順帶一提，這個版本號實務上會跟 build.gradle 裡的 version 對齊，CI 直接讀出來用。
+語意化版號就是 SemVer：修 bug 只加最後一碼，加新功能加中間一碼，有破壞相容性的改動才加第一碼。我們專案 build.gradle 的 version 目前是 0.0.1-SNAPSHOT，實務上會讓這兩邊對齊，CI 直接讀出來用。
 
-第二段範例展示一次 build 打上三個 tag：1.3.0 給人看、git commit hash 給機器精準追蹤是哪次 commit、staging 給部署流程判斷要送去哪個環境。三個 tag 指向同一份 image，硬碟只佔一份。
+第三段一次 build 打上兩個 tag：版本號給人看、git commit hash 給機器精準追蹤。前後端是兩個 repo，所以用 git -C 指定要讀哪個 repo 的 commit。正式環境出包時，從雲端平台看到跑的是 ssds-api:a3f9c1e，直接 git checkout a3f9c1e 就能看到當時一模一樣的程式碼。
 
-那個 commit hash 的 tag 特別有價值。正式環境出包的時候，你從監控看到跑的是 taskboard-api:a3f9c1e，直接 git checkout a3f9c1e 就能看到當時一模一樣的程式碼，不用猜。
-
-最後 Docker 官方文件特別提到更保險的做法是搭配 digest，也就是那串 sha256 開頭的雜湊值，這是根據 image 內容算出來的指紋，就算之後同一個 tag 被別人覆蓋成不同內容，我們鎖定 digest 的話還是能保證拿到原本那個版本。
-
-⚠️ 易錯點：digest 那串很長，通常不會手動記，而是在 CI/CD 流程裡自動產生、自動寫入設定檔。
+最後是 digest，那串 sha256 是根據 image 內容算出來的指紋。digest 只有在 push 到 registry 之後才會有，第九章部署時平台的部署紀錄裡也會顯示它。
 -->
 
 ---
@@ -332,108 +309,98 @@ layout: section
 class: flex flex-col justify-center items-center text-center
 ---
 
-# CI/CD 概念與推送至 Registry
+# 推送至 Docker Hub
 
 <!--
-最後一部分，我們來聊聊怎麼把 image 送出去，還有簡單認識一下 CI/CD 是什麼。
-
-想像我們前面辛苦組好的貨（image），總得要有個倉庫可以寄放、也要有一套穩定的流程，確保每次出貨的品管都一致，這就是這一部分要講的東西。
+第三部分，把做好的 image 送到 Registry，讓雲端平台可以直接拉。
 -->
 
 ---
 
 # 什麼是 Registry？
 
-每次到新機器跑程式都重新複製原始碼、重新 build，速度慢，環境差異也容易造成「這邊能跑，那邊跑不動」的問題。
-
-「Registry（映像倉庫）」是集中存放、管理、分享 Docker image 的地方，用來解決這個問題。Docker Hub 官方說明它是**「世界上最大的容器 registry，用來存儲、管理和共享 Docker 映像」**。
+「Registry（映像倉庫）」是集中存放、管理、分享 Docker image 的地方。Docker Hub 官方說明它是**「世界上最大的容器 registry，用來存儲、管理和共享 Docker 映像」**。
 
 | 概念 | 說明 |
 | --- | --- |
-| Registry | 存放 image 的伺服器服務，例如 Docker Hub |
-| Repository | Registry 裡的一個專案空間，例如 `myaccount/taskboard-api` |
-| Tag | Repository 底下的具體版本，例如 `myaccount/taskboard-api:1.2.0` |
-| Public repository | 任何人都能 pull，數量不限 |
-| Private repository | 需要權限才能存取，適合內部專案 |
+| Registry | 存放 image 的伺服器服務，例如 Docker Hub、GitHub Container Registry（ghcr.io） |
+| Repository | Registry 裡的一個專案空間，例如 `myaccount/ssds-api` |
+| Tag | Repository 底下的具體版本，例如 `myaccount/ssds-api:1.0.0` |
+| Public repository | 任何人都能 pull；免費帳號數量不限 |
+| Private repository | 需要權限才能存取；免費帳號數量有限，雲端平台拉取時要另外給憑證 |
 
 <!--
-先建立這個核心觀念：Registry 就是 image 的「倉庫」，我們把組好的貨放進去，其他機器（不管是同事的電腦還是正式環境的伺服器）就可以直接從倉庫拉貨，不用重新組一次。
+先建立這個核心觀念：Registry 就是 image 的「倉庫」，我們把組好的貨放進去，其他機器（同學的電腦、雲端平台）就可以直接從倉庫拉貨，不用重新 build 一次。
 
-Docker Hub 是最知名、也是最大的公開 Registry，但企業內部也常常會架設自己的私有 Registry。
+Repository 要 public 還是 private？我們的 image 裡沒有機密（.env 都被排除了），但有編譯後的程式碼，jar 是可以被反編譯的。課堂專案用 public 最簡單；如果專案需要保密，就用 private repository，第九章在雲端平台設定時多填一組 Docker Hub 的存取 token 就好。
 
-表格裡把幾個容易搞混的名詞釐清一下：Registry 是整個倉庫服務，Repository 是倉庫裡的一個專案分類，Tag 才是掛在 Repository 底下的具體版本。三層關係大家可以想成「倉庫 > 貨架 > 貨物批號」。
-
-⚠️ 易錯點：public repository 是任何人都能看、能拉的，不要把還沒公開的專案或含有機密資訊的 image 誤推到 public repository。
+⚠️ 易錯點：public repository 是任何人都能看、能拉的，推之前一定要確認 image 裡沒有 .env——第四章練習教過的 ls /app 檢查請再做一次。
 -->
 
+---
+zoom: 0.89
 ---
 
 # Build → Tag → Push 流程
 
 | 步驟 | 指令 | 說明 |
 | --- | --- | --- |
-| 1. 登入 | `docker login [REGISTRY_URL]` | 驗證帳號權限，Docker Hub 可省略網址 |
-| 2. 建置 | `docker build -t taskboard-api:1.2.0 ./taskboard-api` | 依 Dockerfile 組出 image |
-| 3. 標記 | `docker image tag taskboard-api:1.2.0 myaccount/taskboard-api:1.2.0` | 加上 registry/使用者前綴 |
-| 4. 推送 | `docker image push myaccount/taskboard-api:1.2.0` | 上傳到 Registry |
-| 5. 驗證 | `docker pull myaccount/taskboard-api:1.2.0` | 從部署伺服器測試拉取 |
+| 1. 登入 | `docker login -u myaccount` | 密碼欄位貼 **Personal Access Token**，不要用帳號密碼 |
+| 2. 建置 | `docker build --platform linux/amd64 -t myaccount/ssds-api:1.0.0 .` | 依 Dockerfile 組出 image，**指定 amd64** |
+| 3. 標記 | `docker image tag myaccount/ssds-api:1.0.0 myaccount/ssds-api:latest` | 需要的話加其他 tag |
+| 4. 推送 | `docker image push --all-tags myaccount/ssds-api` | 上傳到 Docker Hub |
+| 5. 驗證 | `docker pull myaccount/ssds-api:1.0.0` | 刪掉本機 image 後重拉，確認拉得到 |
+
+<div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
+⚠️ <b>Apple Silicon（M1～M4）的 Mac 一定要加 <code>--platform linux/amd64</code>：</b> 預設會 build 出 arm64 的 image，雲端平台幾乎都是 amd64，啟動時會出現 <code>exec format error</code>。Windows / Intel Mac 本來就是 amd64，加了也無妨。
+</div>
 
 <!--
-這是這一部分最核心的一張表，把「從自己電腦到讓別人拉得到」拆成五個步驟。
+這是這一部分最核心的一張表，把「從自己電腦到讓雲端拉得到」拆成五個步驟。
 
-第一步 docker login 是先跟 Registry 證明「我是這個帳號」，登入憑證由 docker login 統一管理，之後 push 才有權限。
+第一步 docker login：Docker Hub 建議用 Personal Access Token（在 Account settings → Personal access tokens 建立）取代帳號密碼，token 可以單獨撤銷，外洩風險小很多。
 
-第二步 build 大家很熟了，就是照 Dockerfile 把 image 組出來。
+第二步的 --platform linux/amd64 是這頁最重要的提醒。Image 是跟 CPU 架構綁定的：M 系列晶片的 Mac 預設 build 出 arm64 的 image，在自己電腦跑得好好的，丟到雲端的 x86 伺服器就是 exec format error。這個錯誤訊息很不直覺，很多人卡一整個下午。Mac 上指定 amd64 會用模擬的方式 build，會慢一點，正常的。
 
-第三步很多新手會漏掉：推送前必須把 image 標記成「registry 位址/帳號/名稱:tag」的完整格式，因為 Docker 預設推去 Docker Hub，如果沒加前綴或前綴不是我們自己的帳號，push 會失敗或推錯地方。
+第三步：我們在 build 時就直接用 myaccount/ssds-api 這種含帳號的完整名稱，所以不用再額外 tag 前綴；如果之前 build 的是 ssds-api:1.0.0，就要先 tag 成 myaccount/ssds-api:1.0.0 才能推。
 
-第四步才是真正的上傳動作，第五步則是驗證，最好找另一台機器（或先刪掉本機的 image）重新 pull 一次，確認別人真的拉得到、也拉得對。
+第五步驗證：最好先 docker rmi 刪掉本機的 image 再 pull 一次，確認真的拉得到。
 
-⚠️ 易錯點：第三步的 tag 名稱一定要包含帳號或組織名稱，例如 myaccount/taskboard-api，不能只用 taskboard-api，不然會被當成要推去官方保留的命名空間，通常會被拒絕。
-
-順帶提醒，TaskBoard 有兩個 image 要推：taskboard-api 跟 taskboard-web。db 不用推，因為它直接用官方的 mysql:8.4。這也是一個實務原則——能用官方 image 就別自己包。
+⚠️ 易錯點：tag 名稱一定要包含帳號，例如 myaccount/ssds-api，不能只用 ssds-api，不然會被當成要推去 Docker 官方的命名空間，直接被拒絕。
 -->
 
 ---
 
 # Build → Tag → Push — 範例
 
-TaskBoard 發布 1.2.0 版的完整流程：
+SSDS 發布 1.0.0 版的完整流程（在 `ai-products-selection/` 下）：
 
 ```bash
-# 1. 登入 Docker Hub
-docker login
+# 1. 登入 Docker Hub（密碼貼 Personal Access Token）
+docker login -u myaccount
 
-# 2. 建置兩個服務的 image
-docker build -t taskboard-api:1.2.0 ./taskboard-api
-docker build -t taskboard-web:1.2.0 ./taskboard-web
+# 2. 建置兩個服務的 image（直接用含帳號的名稱 + 指定平台）
+docker build --platform linux/amd64 -t myaccount/ssds-api:1.0.0 \
+  ./ai-products-selection-backend
+docker build --platform linux/amd64 -t myaccount/ssds-web:1.0.0 \
+  ./ai-products-selection-frontend
 
-# 3. 標記成含帳號的完整名稱
-docker image tag taskboard-api:1.2.0 myaccount/taskboard-api:1.2.0
-docker image tag taskboard-api:1.2.0 myaccount/taskboard-api:latest
-docker image tag taskboard-web:1.2.0 myaccount/taskboard-web:1.2.0
+# 3. 推送
+docker image push myaccount/ssds-api:1.0.0
+docker image push myaccount/ssds-web:1.0.0
 
-# 4. 推送
-docker image push --all-tags myaccount/taskboard-api
-docker image push myaccount/taskboard-web:1.2.0
-
-# 5. 在部署伺服器上：改 .env 的版本號後拉新版重啟
-#    TASKBOARD_VERSION=1.2.0
-docker compose pull && docker compose up -d
+# 或者：compose.yaml 的 image 欄位已經是 ${DOCKERHUB_USER}/ssds-xxx:${SSDS_VERSION}
+DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose build && docker compose push
 ```
 
 <!--
-帶大家實際走一次完整流程，這就是 TaskBoard 真正上線的樣子。
+帶大家實際走一次完整流程，這就是 SSDS 推上 Docker Hub 的樣子。
 
-注意第 3 步同時打了 1.2.0 跟 latest：語意化版號給精準追蹤用，latest 方便沒指定版本時的預設拉取。但正式環境的 compose.yaml 一定要明確寫版本號，不要依賴 latest。
+兩種做法擇一：前半段是一個一個 build、push；最後一行是利用 Compose：因為我們剛剛把 compose.yaml 的 image 欄位改成含帳號、含版本的完整名稱，docker compose build 會把兩個 image 都 build 好、docker compose push 會把兩個都推上去。DOCKER_DEFAULT_PLATFORM 這個環境變數讓 Compose build 時也用 amd64。PowerShell 的話先打 `$env:DOCKER_DEFAULT_PLATFORM="linux/amd64"` 再執行。
 
-第 5 步是這頁最實用的一段，也是把前面所有東西串起來的地方。部署伺服器上不需要有原始碼、不需要裝 JDK、不需要裝 Node，只要有 Docker、一份 compose.yaml 跟一份 .env。要升版就改 .env 裡的 TASKBOARD_VERSION，然後 compose pull 把新 image 拉下來、compose up -d 讓 Compose 自動把有變動的服務重建重啟。
+預期結果：push 完成後到 Docker Hub 該帳號頁面，能看到 ssds-api 跟 ssds-web 兩個 repository，各有一個 1.0.0 的 tag。
 
-回滾更簡單：.env 改回 1.1.0，同樣兩行指令，三十秒回到上一版。這就是我們前面堅持要有版本 tag 的回報。
-
-預期結果：push 完成後到 Docker Hub 該帳號頁面，能看到 taskboard-api 跟 taskboard-web 兩個 repository。
-
-⚠️ 推送過程中進度條顯示的是「未壓縮」大小，實際傳輸的資料量因為壓縮而更小，所以不用太在意進度條顯示的數字比預期的檔案大。
+⚠️ 推送過程中進度條顯示的是「未壓縮」大小，實際傳輸的資料量因為壓縮而更小。第一次推 ssds-api 壓縮後約 170MB，網路慢的話要等一下；之後改版只要推有變動的 layer（通常只有 jar 那一層）。
 -->
 
 ---
@@ -444,81 +411,132 @@ docker compose pull && docker compose up -d
 
 「CI/CD」是 Continuous Integration（持續整合）與 Continuous Deployment/Delivery（持續部署/交付）的合稱，核心精神是**「把 build、測試、push、部署交給自動化流程，人只需要專心寫程式」**。
 
-| 階段 | CI/CD 做的事 |
-| --- | --- |
-| 觸發 | 開發者 push 程式碼到 Git |
-| CI（持續整合）| 自動 build image、跑測試 |
-| 打包 | 自動 tag（例如用 commit hash 或版本號）|
-| CD（持續部署）| 自動 push 到 Registry，再部署到伺服器 |
+| 階段 | CI/CD 做的事 | SSDS 用什麼（第九章實作） |
+| --- | --- | --- |
+| 觸發 | 開發者 push 程式碼到 Git | GitHub |
+| CI（持續整合）| 自動 build image、跑測試 | GitHub Actions（public repo 免費） |
+| 打包 | 自動 tag（版本號 / commit hash）並 push | Docker Hub |
+| CD（持續部署）| 通知雲端平台拉新版並重新部署 | 雲端平台的 Deploy Hook |
 
 <!--
 這張帶入 CI/CD 的概念，先講痛點：手動流程步驟一多就容易出錯，尤其團隊人數變多、部署頻率變高之後，手動操作幾乎一定會出包。
 
 CI/CD 說穿了就是把我們前面學的 build、tag、push 這一整套流程，寫成腳本、交給自動化工具去跑，開發者只要專心把程式碼 push 上去，後面的事情工具會自動接手。
 
-表格描述的是最基本的流程骨架：開發者 push 程式碼 → CI 工具自動 build 並跑測試 → 測試過了自動打 tag → CD 工具自動推送並部署。像 GitHub Actions、GitLab CI 這些工具都是在做這件事。
+最右邊那欄是第九章會實際做的：GitHub Actions 在 push 到 main 時自動 build、push 到 Docker Hub，再呼叫雲端平台的 Deploy Hook 觸發重新部署。
 
-⚠️ 這裡先講觀念，不深入特定工具的設定語法，重點是理解「自動化取代手動重複步驟」這個核心精神，等大家有需要時再去查特定 CI/CD 工具的文件。
+補充：我們後端專案的測試有用 Testcontainers，它會在測試時自動起一個真的 PostgreSQL 容器，所以 CI 跑測試的機器也要有 Docker——GitHub Actions 的 ubuntu runner 剛好內建 Docker，這也是 Docker 在 CI/CD 裡很實用的一種應用場景。
+-->
 
-補充一提，testcontainers.com 這類工具也常被整合進 CI 流程裡，用來在自動化測試階段直接啟動真實的資料庫、訊息佇列等容器做整合測試，這也是 Docker 在 CI/CD 裡很實用的一種應用場景。對 Spring Boot 專案來說特別好用——整合測試不用再靠 H2 假裝自己是 MySQL，直接開一個真的 MySQL 8.4 容器來跑。
+---
+layout: section
+class: flex flex-col justify-center items-center text-center
+---
+
+# 正式環境加固
+
+<!--
+最後一部分，把 SSDS 推上雲端前的最後一哩路：自動重啟、健康檢查、記憶體限制。
 -->
 
 ---
 
-# 正式環境加固：健康檢查與資源限制
+# 健康檢查、自動重啟與資源限制
 
 ```yaml
 services:
   api:
-    image: myaccount/taskboard-api:${TASKBOARD_VERSION}
-    restart: unless-stopped              # 掛掉自動重啟，主機重開也會自己起來
-    healthcheck:                         # 用 Actuator 判斷「活著」
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
+    image: ${DOCKERHUB_USER:?}/ssds-api:${SSDS_VERSION:-1.0.0}
+    restart: unless-stopped                  # 掛掉自動重啟
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/api/v1/actuator/health"]
       interval: 30s
-      timeout: 3s
+      timeout: 5s
       retries: 3
-      start_period: 40s                  # 給 Spring Boot 啟動的寬限時間
+      start_period: 180s                     # 實測 0.5 CPU 下啟動約 115 秒
     deploy:
       resources:
-        limits:   { cpus: "1.0", memory: 1g }    # 上限：不准吃垮主機
-        reservations: { memory: 512m }           # 保留：至少要有這麼多
+        limits: { cpus: "0.5", memory: 512m }   # 模擬免費雲端方案
     environment:
-      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"   # JVM 依容器記憶體上限調整堆積
+      JAVA_TOOL_OPTIONS: >-
+        -XX:MaxRAMPercentage=60 -XX:+UseSerialGC -Xss512k -XX:TieredStopAtLevel=1
 ```
 
 <!--
-這頁是把 TaskBoard 推上正式環境前的最後一哩路，三件事。
+這頁是三件事。
 
-第一是 restart: unless-stopped。容器如果因為 OOM 或程式例外掛掉，Docker 會自動重啟；主機重開機它也會自己起來。不加這行，半夜服務掛了就是掛到早上。unless-stopped 的意思是「除非你手動 stop，否則我一直重啟」，比 always 好，因為你手動停掉的服務不會被硬拉起來。
+第一是 restart: unless-stopped。容器如果因為 OOM 或程式例外掛掉，Docker 會自動重啟；主機重開機它也會自己起來。unless-stopped 的意思是「除非你手動 stop，否則我一直重啟」。
 
-第二是 healthcheck，這裡用 Spring Boot Actuator 的 /actuator/health。這比單純看「容器有沒有在跑」精準太多——Java 行程還活著，但資料庫連線池爆了、應用其實已經沒有服務能力，這種情況只有健康檢查抓得到。注意 start_period 那行，Spring Boot 啟動要二三十秒，沒有寬限期的話它會在啟動途中就被判定不健康。
+第二是 healthcheck，用第四章加的 actuator。start_period 拉到 180 秒：實測限制 0.5 CPU 時 SSDS 啟動要 115 秒左右（不限制約 30 秒），寬限期太短的話第一次 up 會報 dependency failed to start。
 
-第三是資源限制，這是很多人忽略但很重要的一項。JVM 預設會看「整台主機」有多少記憶體來決定堆積大小，主機有 32GB 它就敢用 8GB。萬一 API 有記憶體洩漏，它會一路吃到把整台機器連同資料庫一起拖垮。設了 memory: 1g 之後，容器最多用 1GB，超過就只有這個容器被 OOM kill 掉，其他服務不受影響——爆炸有邊界。
+第三是資源限制，這是重點。第九章的免費雲端方案只有 512MB 記憶體、很少的 CPU。與其部署上去才發現爆掉、然後在雲端看 log 猜原因，不如先在本機用 deploy.resources.limits 模擬一樣的條件。
 
-那個 JAVA_TOOL_OPTIONS 的 MaxRAMPercentage 是 Java 專屬的配套。新版 JVM 已經看得懂容器的記憶體上限，這行是明確告訴它「堆積最多用容器上限的 75%」，剩下的留給 metaspace、執行緒堆疊這些非堆積記憶體。⚠️ 沒設這個的話，JVM 堆積可能貼著容器上限成長，然後在 GC 之前就先被 Docker 殺掉，log 裡什麼線索都沒有，只留下一個 Exit Code 137，很難查。
+JAVA_TOOL_OPTIONS 是 JVM 的記憶體調校，每一個參數都有原因：
+- MaxRAMPercentage=60：堆積最多用容器上限的 60%，大約 300MB。剩下的 200MB 要留給 metaspace（我們專案類別很多：Spring、Hibernate、POI、ICU4J）、執行緒堆疊、程式碼快取。設到 75% 以上，總用量很容易超過 512MB 被系統殺掉。
+- UseSerialGC：單執行緒的垃圾回收器，額外記憶體開銷最小，適合小記憶體、少 CPU 的環境。
+- Xss512k：每條執行緒的堆疊從預設 1MB 降到 512KB，Tomcat 有幾十條執行緒，省下來很可觀。
+- TieredStopAtLevel=1：只用 C1 編譯器，啟動更快、程式碼快取更小，代價是長時間執行的峰值效能差一點——對 demo 來說完全划算。
+
+⚠️ 沒設這些的話，最常見的症狀是容器莫名其妙重啟，docker inspect 看到 OOMKilled: true、Exit Code 137，log 裡什麼線索都沒有。
+
+這組參數可以直接寫進 Dockerfile 的 ENV 當預設值，下一頁會看到。
+-->
+
+---
+zoom: 0.95
+---
+
+# 把 JVM 設定放進 Dockerfile
+
+```dockerfile
+# ai-products-selection-backend/Dockerfile 第二階段（更新版）
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+RUN addgroup -S app && adduser -S app -G app \
+ && mkdir -p /app/uploads && chown -R app:app /app
+COPY --from=build /src/ssds-api/build/libs/ssds.jar app.jar
+USER app
+ENV SPRING_PROFILES_ACTIVE=prod \
+    JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=60 -XX:+UseSerialGC -Xss512k -XX:TieredStopAtLevel=1"
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "app.jar"]
+```
+
+```bash
+# 驗證：看 JVM 實際算出來的最大堆積
+docker run --rm -m 512m --entrypoint java myaccount/ssds-api:1.0.0 \
+  -XX:+PrintFlagsFinal -version | grep -i maxheapsize
+```
+
+<!--
+把 JVM 參數寫進 Dockerfile 的 ENV 當預設值，好處是不管在本機 docker run、Compose、還是第九章的雲端平台，都自動帶上這組參數，不用每個地方各設一次。需要調整的時候，在平台上設同名環境變數就能覆蓋。
+
+驗證指令：-m 512m 限制記憶體，--entrypoint java 讓容器改跑 java -XX:+PrintFlagsFinal -version，印出 JVM 所有參數的最終值，grep MaxHeapSize 應該看到大約 300MB 左右的數字（單位是 byte）。啟動時 log 第一行也會出現 Picked up JAVA_TOOL_OPTIONS，代表 JVM 有讀到。
+
+⚠️ 改完 Dockerfile 記得重 build、重推，版本號 +1。
 -->
 
 ---
 layout: default
 ---
 
-# 練習 1：把 TaskBoard 的密碼從版控裡趕出去
+# 練習 1：上線前的機密檢查
 ### 任務說明
 
-拿出第五章那份 `compose.yaml`，裡面 `rootpw`、`apppw` 都是明文寫死的。請完成：
-
-1. 建立 `.env`，把 `MYSQL_ROOT_PASSWORD`、`MYSQL_PASSWORD`、`TASKBOARD_VERSION` 移進去
-2. 改寫 `compose.yaml`，全部改用 `${}` 插值，確保檔案裡**看不到任何一個明文密碼**
-3. 把 `.env` 加進 `.gitignore`，並建立可進版控的 `.env.example`
-4. 幫 `taskboard-api` 與 `taskboard-web` 補上語意化版號 tag `1.0.0`
-5. 驗證：`docker compose up -d` 之後，用 `docker compose exec api env | grep SPRING` 確認密碼真的有被注入容器
+1. 在 `ai-products-selection/` 建立 Compose 層的 `.env`（`SSDS_VERSION`、`DOCKERHUB_USER`）與 `.env.example`，並確認 `.env` 不會被 Git 追蹤
+2. 改寫 `compose.yaml`：image 改用 `${DOCKERHUB_USER}/ssds-xxx:${SSDS_VERSION}`，用 `docker compose config` 確認展開正確
+3. 產生一組新的 `SSDS_JWT_SECRET` 寫進後端 `.env`
+4. 驗證 image 裡沒有機密：
+   - `docker run --rm --entrypoint ls myaccount/ssds-api:1.0.0 -la /app` 看不到 `.env`
+   - `docker history --no-trunc myaccount/ssds-api:1.0.0` 裡找不到任何密碼
+5. **想一想**：如果組員把 `MISTRAL_API_KEY` 寫在 Dockerfile 的 `ENV` 而且已經推上 public repo，應該做哪些事？
 
 <!--
-第一題重點在複習前兩部分的核心觀念：設定與程式碼分開、密碼不進版控、版本要有明確標記。
+第一題重點在複習第一部分的核心觀念：設定與程式碼分開、密碼不進版控、也不進 image。
 
-第 5 步的驗證很重要，因為改成 ${} 之後最常見的失敗是「Compose 找不到變數，就默默代入空字串」，結果密碼變成空的，資料庫連不上。用 exec env 檢查一次最保險。
+第 4 步的兩個驗證都很重要：ls 看檔案、history 看每一層是怎麼來的。
 
-給同學一點時間動手，等一下看提示。
+第 5 題答案：第一件事是到 Mistral 後台把那把 key 作廢、重發一把新的——這是唯一真正有效的補救；接著改 Dockerfile、重 build、重推，並刪掉 Docker Hub 上有問題的 tag。順序很重要：先作廢金鑰，因為 image 可能已經被別人拉走了。
 -->
 
 ---
@@ -528,103 +546,103 @@ layout: default
 # 練習 1：解題提示
 
 ```bash
-# .env（不進版控）
-MYSQL_ROOT_PASSWORD=rootpw
-MYSQL_PASSWORD=apppw
-TASKBOARD_VERSION=1.0.0
-```
-
-```yaml
-# compose.yaml 片段
-  db:
-    image: mysql:8.4
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+# ai-products-selection/.env（不進版控）
+SSDS_VERSION=1.0.0
+DOCKERHUB_USER=myaccount
 ```
 
 ```bash
-echo ".env" >> .gitignore
-docker image tag taskboard-api:latest taskboard-api:1.0.0
-docker compose config          # 展開後檢查變數有沒有正確代入
-docker compose exec api env | grep SPRING
+# .env.example（可進版控）
+SSDS_VERSION=1.0.0
+DOCKERHUB_USER=
+```
+
+```bash
+docker compose config | grep image:               # 確認 image 名稱展開正確
+docker run --rm alpine sh -c "head -c 48 /dev/urandom | base64"   # 產生 JWT secret
+docker run --rm --entrypoint ls myaccount/ssds-api:1.0.0 -la /app
+docker history --no-trunc myaccount/ssds-api:1.0.0 | grep -i -E "password|api_key|token"
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <code>docker compose config</code> 會印出「變數展開後」的完整設定，是檢查 <code>${}</code> 有沒有代入成功最快的方法。
+💡 <code>ai-products-selection/</code> 本身不是 Git repo 的話，Compose 層 <code>.env</code> 不會被追蹤；如果你把 compose.yaml 放進後端 repo，就要確認那個 repo 的 <code>.gitignore</code> 有排除它。
 </div>
 
 <!--
 提示給得很具體了，大家對照自己的答案看看。
 
-我特別想推薦 docker compose config 這個指令，很多人不知道。它會把 ${} 全部展開之後印出來，變數有沒有讀到、讀到什麼值，一目了然。⚠️ 但也因為它會印出明文密碼，不要在共用螢幕或會被錄影的場合亂打。
+⚠️ 一個要提醒的坑：.gitignore 加了 .env 之後，如果 .env 之前已經不小心 commit 過，光加 .gitignore 是沒用的。用 git log --all -- .env 可以檢查歷史裡有沒有出現過。
 
-⚠️ 另一個要提醒的坑：.gitignore 加了 .env 之後，如果 .env 之前已經不小心 commit 過，光加 .gitignore 是沒用的，舊 commit 裡還找得到。這種情況要處理 Git 歷史，而且最正確的做法是——直接把那組密碼換掉，因為它已經外洩了。
+預期結果：ls /app 只有 app.jar 跟 uploads；history 裡 grep 不到任何東西。
 -->
 
 ---
 layout: default
 ---
 
-# 練習 2：完整發布 TaskBoard 到 Registry
+# 練習 2：發布到 Docker Hub 並模擬免費方案
 ### 任務說明
 
-把 TaskBoard 1.0.0 版發布出去，並模擬部署伺服器拉取。
-
-1. 登入 Docker Hub
-2. 建置 `taskboard-api` 與 `taskboard-web` 的 1.0.0 版 image
-3. 標記成含帳號的完整名稱（版本號 + `latest` + git commit hash 三種 tag）
-4. 推送到 Registry
-5. 模擬部署伺服器：刪掉本機 image 後重新 `pull`，用只有 `compose.yaml` + `.env` 的方式啟動整套
-6. **想一想**：正式環境發現 1.0.0 有嚴重 bug，要在三十秒內回到 0.9.0，你要改哪裡、打哪兩個指令？
+1. 更新後端 Dockerfile，加入 `JAVA_TOOL_OPTIONS`，重新 build `ssds-api` 與 `ssds-web`（`--platform linux/amd64`）
+2. 打上 `1.0.0` 與 git commit hash 兩種 tag，推送到 Docker Hub
+3. 模擬部署機：`docker compose down`、刪掉本機兩個 image，再 `docker compose pull && docker compose up -d`
+4. 在 compose.yaml 幫 api 加上 `memory: 512m` 限制，觀察：
+   - `docker compose ps` 多久變成 healthy？
+   - `docker stats` 看 api 實際用了多少記憶體？
+   - 登入前端操作幾分鐘，api 有沒有重啟（`docker inspect` 看 `RestartCount` 與 `OOMKilled`）？
+5. **想一想**：雲端發現 1.0.1 有嚴重 bug，要回到 1.0.0，你要改哪裡、打哪兩個指令？
 
 <!--
-第二題是整個課程的收尾題，把 build、tag、push、部署串成一條線，這些步驟正是 CI/CD 自動化背後實際執行的指令。
+第二題把 build、tag、push、部署串成一條線，也是第九章的彩排。
 
-第 5 步請大家真的把本機 image 刪掉再拉，因為這才是「部署伺服器」的真實狀態——那台機器上沒有原始碼、沒有 JDK、沒有 Node，只有 Docker 跟兩個設定檔。能跑起來，就證明我們八章學的容器化真的完成了。
+第 3 步請大家真的把本機 image 刪掉再拉，因為這才是「部署伺服器」的真實狀態——那台機器上沒有原始碼、沒有 JDK、沒有 Node，只有 Docker 跟設定檔。
 
-第 6 題是我最想留給大家的一個觀念。答案是：改 .env 裡的 TASKBOARD_VERSION=0.9.0，然後 docker compose pull && docker compose up -d。就這樣，三十秒。這個能力——出事能快速回到上一個好版本——就是我們前面堅持要打版本 tag、堅持不用 latest 的全部理由。
+第 4 步是第九章的事前演練。如果在本機 512MB 都撐不住，部署到雲端一定也撐不住，先在這裡調好參數。
+
+第 5 題答案：改 Compose 層 .env 的 SSDS_VERSION=1.0.0，然後 docker compose pull && docker compose up -d。第九章的雲端平台也是同樣的概念，只是改的是平台上的 image tag。
 -->
 
 ---
 layout: default
+zoom: 0.95
 ---
 
 # 練習 2：解題提示
 
 ```bash
-# 1-2. 登入並建置
-docker login
-docker build -t taskboard-api:1.0.0 ./taskboard-api
-docker build -t taskboard-web:1.0.0 ./taskboard-web
+# 1-2. 建置、打 tag、推送
+docker login -u myaccount
+SHA=$(git -C ai-products-selection-backend rev-parse --short HEAD)
+docker build --platform linux/amd64 \
+  -t myaccount/ssds-api:1.0.0 -t myaccount/ssds-api:$SHA \
+  ./ai-products-selection-backend
+docker build --platform linux/amd64 -t myaccount/ssds-web:1.0.0 \
+  ./ai-products-selection-frontend
+docker image push --all-tags myaccount/ssds-api
+docker image push --all-tags myaccount/ssds-web
 
-# 3. 三種 tag
-GIT_SHA=$(git rev-parse --short HEAD)
-docker image tag taskboard-api:1.0.0 myaccount/taskboard-api:1.0.0
-docker image tag taskboard-api:1.0.0 myaccount/taskboard-api:latest
-docker image tag taskboard-api:1.0.0 myaccount/taskboard-api:$GIT_SHA
-
-# 4. 推送
-docker image push --all-tags myaccount/taskboard-api
-docker image push --all-tags myaccount/taskboard-web
-
-# 5. 模擬部署機：清乾淨再拉
+# 3. 模擬部署機：清乾淨再拉
 docker compose down
-docker rmi myaccount/taskboard-api:1.0.0 myaccount/taskboard-web:1.0.0
+docker rmi myaccount/ssds-api:1.0.0 myaccount/ssds-web:1.0.0
 docker compose pull && docker compose up -d
+
+# 4. 觀察記憶體與重啟
+docker stats --no-stream
+docker inspect -f '{{.RestartCount}} {{.State.OOMKilled}}' ssds-api-1
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-⚠️ <b>第 6 題答案：</b> 改 <code>.env</code> 的 <code>TASKBOARD_VERSION=0.9.0</code>，然後
-<code>docker compose pull && docker compose up -d</code> — 這就是版本 tag 存在的全部意義。
+⚠️ <b>如果 OOMKilled = true：</b> 先把 <code>MaxRAMPercentage</code> 調到 50；再不行，用環境變數關掉用不到的排程（例如 <code>SSDS_INGEST_INSTAGRAM_ENABLED=false</code>），減少背景工作吃的記憶體。
 </div>
 
 <!--
-對答案時間。重點是理解「為什麼是這個順序」：不登入就 push 會被拒絕；不 tag 成含帳號的格式，push 目標會不對。
+對答案時間。PowerShell 的同學，SHA 那行改成 `$SHA = git -C ai-products-selection-backend rev-parse --short HEAD`，後面的 $SHA 照用。
 
-⚠️ 第 5 步的驗證非常重要，很多人推送完就以為結束了，但沒有實際拉取驗證過，不知道部署機是不是真的拉得到、拉到的是不是預期的版本。養成「推送後一定驗證」的習慣。
+⚠️ 第 3 步的驗證非常重要，很多人推送完就以為結束了，但沒有實際拉取驗證過，不知道部署機是不是真的拉得到。
 
-最後回顧一下我們這八章對 TaskBoard 做了什麼：第一章用 docker run 起了一個 MySQL，第八章我們有一套版本化、密碼不落地、可以三十秒回滾的完整部署流程。同一個專案，從「在我電腦上可以跑」變成「在任何裝了 Docker 的機器上都能跑」。這就是容器化。
+第 4 步大家會看到：限制 512MB、0.5 CPU 之後，Spring Boot 啟動時間會從約 30 秒變成約 115 秒（實測）。雲端免費方案的 CPU 更少，啟動會更慢，這是正常的，第九章會再提醒。
+
+docker stats 實測 api 啟動後約 330MB（512MB 上限內）。如果貼著 512MB，就要調參數。
 -->
 
 ---
@@ -637,40 +655,33 @@ layout: default
 .summary-table td { text-align: left; padding: 12px 8px; border: none !important; border-bottom: 1px solid #e2e8f0 !important; }
 </style>
 
-# 本章總結 — 課程回顧
+# 本章總結 — 上線前準備
 
 <table class="summary-table">
 <thead>
-<tr><th>章節</th><th>核心一句話</th></tr>
+<tr><th>主題</th><th>重點回顧</th></tr>
 </thead>
 <tbody>
-<tr><td>Ch1 Docker 簡介</td><td>Container 比 VM 更輕量，共用作業系統核心</td></tr>
-<tr><td>Ch2 映像檔管理</td><td>Image 是唯讀模板，Container 是執行實例</td></tr>
-<tr><td>Ch3 容器操作</td><td>run / exec / logs 是每天都會用到的基本功</td></tr>
-<tr><td>Ch4 Dockerfile</td><td>用一份可重複執行的腳本，取代手動組 image</td></tr>
-<tr><td>Ch5 Docker Compose</td><td>用 YAML 一次定義、啟動多個服務</td></tr>
-<tr><td>Ch6 網路設定</td><td>自訂 bridge network 取代已淘汰的 --link</td></tr>
-<tr><td>Ch7 Volume 資料持久化</td><td>資料要活得比 container 久，就交給 Volume</td></tr>
-<tr><td>Ch8 部署實戰</td><td>.env 管密碼、tag 管版本、Registry 負責分享</td></tr>
+<tr><td>兩種 .env</td><td>後端 <code>.env</code> → 容器環境變數；Compose 層 <code>.env</code> → compose.yaml 的 <code>${}</code></td></tr>
+<tr><td>機密值</td><td>只在執行時給；不進 Git、不進 image；<code>SSDS_JWT_SECRET</code> 上線必換</td></tr>
+<tr><td>Tag 策略</td><td>語意化版號 + commit hash，不依賴 <code>latest</code></td></tr>
+<tr><td>Docker Hub</td><td>用 Access Token 登入；<b><code>--platform linux/amd64</code></b></td></tr>
+<tr><td>加固</td><td>restart、Actuator healthcheck、512MB 限制 + <code>JAVA_TOOL_OPTIONS</code></td></tr>
 </tbody>
 </table>
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>記住：</b> 密碼別進版控、image 別只靠 <code>latest</code>、推送前一定要驗證，做到這三件事就避開了新手最常踩的坑。
-</div>
-
-<div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-🎉 <b>恭喜完成全部 8 章：</b> 接下來找一個自己的小專案，實際走一次 Dockerfile、Compose、tag、push 完整流程，動手做過一次才會變成真正的技能。
+🚀 <b>下一章（最後一章）：</b> 雲端部署 — 把 <code>ssds-api</code>、<code>ssds-web</code> 部署到<b>免費、免綁信用卡</b>的平台，讓全世界都連得到。
 </div>
 
 <!--
-八章課程走到這裡，我們一起回顧一下整個學習路徑。
+這一章我們把「上線前」該準備的事情都做完了：機密值管理、版本 tag、推到 Docker Hub、記憶體調校。
 
-從最開始理解 Container 跟 VM 的差異，到學會操作 image 跟 container，再到用 Dockerfile 把「怎麼組 image」寫成腳本、用 Compose 把多個服務兜在一起，接著補上網路和資料持久化這兩塊基礎建設知識，最後這一章則是把「怎麼安全、有版本紀錄地把東西送出去」補齊。
+現在大家手上有：
+- Docker Hub 上的兩個 image：myaccount/ssds-api:1.0.0、myaccount/ssds-web:1.0.0
+- GitHub 上的兩個 repo，各自有 Dockerfile
 
-這八個章節其實是一條完整的路徑：從「認識容器」到「能夠獨立把一個專案部署出去」。走到這裡，大家已經具備完整部署一個 Docker 化專案所需要的核心知識了。
-
-⚠️ 最後提醒一次貫穿整個部署章節最重要的一句話：密碼別進版控、image 別只靠 latest、推送前一定要驗證。這三件事做到，就已經避開了新手最常踩的坑。
+這兩樣東西剛好對應第九章的兩種部署方式：讓雲端平台從 Docker Hub 拉現成的 image，或是讓雲端平台從 GitHub 讀 Dockerfile 自己 build。
 -->
 
 ---
@@ -684,7 +695,5 @@ layout: end
 <!--
 現在開放 Q&A 時間。
 
-大家對環境變數管理、Image Tag 策略，或是 CI/CD 與推送到 Registry 的流程，有沒有什麼疑問？都歡迎提出來討論。
-
-恭喜大家完成八章課程，接下來記得回來翻翻各章節的投影片，或直接查閱 Docker 官方文件，祝大家部署順利！
+大家對環境變數管理、Image Tag 策略、推送到 Docker Hub，或是 JVM 記憶體調校，有沒有什麼疑問？都歡迎提出來討論。
 -->
