@@ -98,7 +98,7 @@ ai-products-selection/
 | DB 連線 | Supabase **pooler**（IPv4）`aws-0-ap-south-1.pooler.supabase.com:6543`，不用 direct connection（IPv6） |
 
 基礎 Image：build 用 `eclipse-temurin:21-jdk-alpine`（+ 專案 `./gradlew`）、`node:22-alpine`（+ `openjdk21-jre-headless` 跑 openapi-generator）；
-runtime 用 `eclipse-temurin:21-jre-alpine`、`nginx:1.28-alpine`。
+runtime 用 `eclipse-temurin:21-jre-alpine`、`nginx:1.30-alpine`。
 
 各章在專案中的切入點：
 

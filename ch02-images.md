@@ -36,17 +36,19 @@ style: |
   <h1 style="color: #1a5c5c; font-size: 3.8rem; font-weight: 900; line-height: 1.15; margin-bottom: 1.5rem;">映像檔管理</h1>
   <div style="height: 4px; width: 320px; background: linear-gradient(90deg, #5eada0, #a7d9d0); border-radius: 2px; margin-bottom: 1.5rem;"></div>
   <p style="color: #4a7c7c; font-size: 1.15rem; font-style: italic;">
-    「Image 就是食譜，Container 才是端上桌的那盤菜」
+    「Image 是模板，Container 是執行實例」
   </p>
   <Link to="home" style="margin-top: 2rem; color: #5eada0; font-size: 0.9rem;">← 返回目錄</Link>
 </div>
 
 <!--
-大家好，歡迎來到第二章：映像檔管理。
+【開場白】
+本章主題是「映像檔管理」。上一章介紹了 Container 是隔離的執行環境，本章說明 Container 的來源：Image（映像檔）。
 
-上一章我們認識了 Docker 的基本概念，知道 Container（容器）是隔離的執行環境。這一章我們要更深入地了解，這些 Container 到底是「用什麼做出來的」——答案就是 Image（映像檔）。
-
-學完這一章，我們會知道 Image 是怎麼組成的、怎麼從 Docker Hub 拉取和推送 Image，以及 tag（標籤）命名有什麼慣例。這些是我們每天寫 Docker 指令都會用到的基本功。
+【學習目標】
+- 理解 Image 的組成與 Layer 結構
+- 使用 pull、push、images、rmi、tag 管理 Image
+- 掌握 Docker Hub 的使用方式與 Tag 命名慣例
 -->
 
 ---
@@ -55,22 +57,18 @@ layout: default
 
 # Outline
 
-<div class="text-left" style="font-size: 1.1rem;">
-
-- Image 概念與 Layer 結構
-- 常用指令：pull / push / images / rmi
-- Docker Hub 與 Tag 命名規則
-- 練習題
-- 總結
-
-</div>
+- **Image 概念與 Layer 結構**
+- **常用指令**
+  - pull / push / images / rmi / tag
+- **Docker Hub 與 Tag 命名規則**
+- **實作練習**
 
 <!--
-今天的內容分成三大部分。
+【帶讀大綱】
+本章分為三個部分：第一部分建立 Image 的基本觀念，說明 Layer 的設計；第二部分實際操作 Image 相關指令；第三部分介紹 Docker Hub 與 Tag 的命名慣例。
 
-第一部分先建立 Image 的心智模型，搞懂什麼是 Layer（層）；第二部分帶大家實際操作最常用的四個指令；第三部分介紹 Docker Hub 怎麼用，還有 tag 該怎麼命名才不會搞混版本。
-
-最後會有兩題練習，讓大家把指令實際打一遍，印象才會深。
+【重點預告】
+最後兩題練習分別針對基本指令與私有 Registry 的發布流程。
 -->
 
 ---
@@ -81,87 +79,93 @@ class: flex flex-col justify-center items-center text-center
 # Image 概念與 Layer 結構
 
 <!--
-我們先從最基礎的問題開始：Image 到底是什麼？為什麼它要分層？
-
-這部分建立好觀念之後，後面學指令會輕鬆很多，因為每個指令其實都是在操作「Image 這個東西」。
+【段落轉換】
+第一部分說明 Image 的定義，以及採用分層結構的原因。後續所有指令操作的對象都是 Image，先建立觀念再學指令會更容易理解。
 -->
 
 ---
 
 # 什麼是 Image？
 
-「Image（映像檔）是一個標準化的封裝，裡面包含執行 Container 所需要的所有檔案、程式庫、執行環境與設定。」
+**Image（映像檔）** 是標準化的封裝，包含執行 Container 所需的檔案、函式庫、執行環境與設定。
 
-- Image 是固定不變的模板，內容不會因執行環境而改變
-- Container 是根據 Image 啟動的執行實例，同一個 Image 可以同時啟動多個 Container
+- Image 是唯讀的模板，內容不隨執行環境改變
+- Container 是依 Image 啟動的執行實例；同一個 Image 可同時啟動多個 Container
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>重點：</b> Image 是「模板」，Container 是「跑起來的實例」。一個 Image 可以同時啟動很多個 Container。
+💡 <b>重點：</b>Image 是「模板」，Container 是「執行中的實例」。
 </div>
 
 <!--
-大家可以想像我們自己家裡的便當店，或是連鎖速食店好了。
+【生活化比喻】
+連鎖餐廳若沒有標準食譜，各分店的口味就會不一致。Image 如同標準食譜：無論在哪台電腦或伺服器上執行，只要使用同一個 Image，產生的環境即完全相同。
 
-如果每一分店都各自發揮、沒有標準食譜，那消費者吃到的口味就會參差不齊。Docker Image 解決的就是軟體世界裡類似的問題：不管在誰的電腦上、在哪台伺服器上執行，只要用同一個 Image，跑出來的環境就會一模一樣。
+【易錯點提醒 ⚠️】
+Image 與 Container 常被混淆：Image 是靜態的模板；Container 是以模板啟動後的動態實例。
 
-這裡的易錯點是：Image 跟 Container 常常被搞混。⚠️ 大家要記得，Image 是「靜態」的模板，不會自己動；Container 是拿這個模板「啟動」之後的執行實例，是動態的、正在跑的東西。
-
-預期大家聽完這頁，能夠一句話說出 Image 跟 Container 的差別。
+【預期結果】
+能以一句話說明 Image 與 Container 的差別。
 -->
 
 ---
 
 # Image 的 Layer 結構
 
-「Image 採用分層（Layer）架構，每一層代表一組檔案系統的變更——新增、刪除或修改某些檔案。」
+Image 採用分層（Layer）架構，每一層記錄一組檔案系統的變更（新增、刪除或修改檔案）。
 
-以 SSDS 的後端 `ssds-api` 為例：
+以 SSDS 後端 `ssds-api` 為例：
 
-- 最底層：作業系統基礎環境（Alpine Linux）
-- 中間層：JRE 21 執行環境（`eclipse-temurin:21-jre-alpine`）
-- 再上一層：Gradle 產出的相依函式庫
-- 最上層：複製我們自己打包出來的 `ssds.jar`
+| 層級 | 內容 |
+| --- | --- |
+| 最底層 | 作業系統基礎環境（Alpine Linux） |
+| 中間層 | JRE 21 執行環境（`eclipse-temurin:21-jre-alpine`） |
+| 上一層 | Gradle 產出的相依函式庫 |
+| 最上層 | 專案打包的 `ssds.jar` |
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>重點：</b> Image「建立後不可修改」，只能在既有 Layer 上面疊加新的 Layer；相同的底層 Layer 可以被多個 Image 共用，不用重複下載。
+💡 <b>重點：</b>Layer 建立後不可修改，只能在既有 Layer 上疊加新 Layer；相同的 Layer 可被多個 Image 共用，不需重複下載。
 </div>
 
 <!--
-這頁在講 Image 為什麼要分層，這其實是 Docker 設計裡很聰明的一點。
+【生活化比喻】
+如同建造房屋：地基完成後不會拆除重建，而是往上加蓋樓層。Image 的每一層都是疊加上去的變更，下層不會被修改。
 
-生活比喻的話，大家可以想成蓋房子：地基打好之後，我們不會把地基敲掉重打，而是往上疊加新的樓層。Docker Image 也是一樣，每一層都是疊加上去的變更，底下的 Layer 不會被修改。
+【核心說明】
+分層設計的好處：多個 Image 若使用相同的基礎層，只需下載與儲存一次，節省空間並加快下載速度。
 
-這樣設計的好處是：如果兩個 Image 都是「Python 基礎環境」，那這一層只要下載一次，兩個 Image 可以共用，不用重複佔用硬碟空間，下載速度也會變快。
+【易錯點提醒 ⚠️】
+修改 Image 中的檔案並不會改動原本的 Layer，而是建立新的 Layer 疊加在上方，這就是 Image「不可變（immutable）」的意義。
 
-⚠️ 易錯點：很多同學會以為修改 Image 裡的檔案就是「改掉原本的 Layer」，但其實 Docker 是幫我們建立一個新的 Layer 疊上去，原本的 Layer 完全不會被動到。這也是為什麼 Image 是「不可變（immutable）」的。
+【業界實務】
+以 SSDS 為例：開發期間 Controller 可能一天修改十多次，但底層的 Alpine 與 JRE 21 不變。重新建置 Image 時只需重做最上層的 jar，因此容器化專案的重新建置速度很快。
 
-用 SSDS 來對照就很有感：我們每天改 Controller 改個十幾次，但底層的 Alpine 跟 JRE 21 從頭到尾沒變，所以每次重新建 Image，真正需要重做的只有最上面那層 jar，這就是為什麼容器化的專案 rebuild 可以那麼快。
-
-預期結果：大家聽完能理解，為什麼下載新 Image 時，有時候會看到「有幾層很快就下載完」——那是因為本機已經有一樣的 Layer 了。
+【預期結果】
+理解下載 Image 時部分 Layer 顯示 `Already exists` 的原因：本機已有相同的 Layer。
 -->
 
 ---
 
 # Registry 與 Image 的關係
 
-「Registry 是儲存和分發 Image 的服務，Docker Hub 是預設的全球公開 Registry，提供超過十萬個開發者製作的 Image。」
+**Registry** 是儲存與分發 Image 的服務。Docker Hub 是 Docker 預設的公開 Registry。
 
-常見的三種 Image 來源：
+常見的 Image 來源：
 
 | 類型 | 說明 |
 | --- | --- |
-| Docker 官方 Image | 例如 `nginx`、`python`、`mysql`，由 Docker 官方維護 |
-| 驗證發行商 Image | 由知名廠商（如 Bitnami）發布並驗證 |
-| 個人 / 組織 Image | 開發者自己 push 上去的 Image |
+| Docker Official Image | 例如 `nginx`、`eclipse-temurin`、`postgres`，由 Docker 與上游社群共同維護 |
+| Verified Publisher | 經 Docker 驗證的廠商所發布的 Image |
+| 個人 / 組織 Image | 開發者自行推送的 Image |
 
 <!--
-這頁把「Image」跟「Registry」的關係講清楚，讓同學知道 Image 平常放在哪裡、我們去哪裡找。
+【生活化比喻】
+Registry 如同食譜分享網站，Docker Hub 是其中規模最大者：可直接使用現成的食譜，也可分享自己的食譜。
 
-生活比喻的話，Registry 就像是「食譜分享網站」，Docker Hub 就是目前全世界最大的那個食譜網站，上面有各種現成的食譜可以直接拿來用，也可以把自己研發的食譜分享上去。
+【業界實務】
+實務上很少從零建立 Image，而是以 Docker Hub 上的官方 Image 作為基礎。官方 Image 會定期更新以修補安全漏洞，較為安全可靠。
 
-業界實務上，我們幾乎不會每個 Image 都自己從零開始寫，而是先去 Docker Hub 找官方 Image 當基礎，這樣比較安全也比較省力，因為官方 Image 通常會定期更新修補安全漏洞。
-
-⚠️ 易錯點：同學常常以為只有 Docker Hub 這一個 Registry，但其實企業內部也常常會架設「私有 Registry」，例如自己公司內網的 registry-host。這點我們在後面 push 的章節會看到範例。
+【易錯點提醒 ⚠️】
+Registry 不只 Docker Hub 一種。企業內部常架設私有 Registry（例如 registry-host:5000），雲端廠商也提供各自的 Registry（如 GitHub Container Registry `ghcr.io`）。後續 push 的範例會使用私有 Registry。
 -->
 
 ---
@@ -172,9 +176,8 @@ class: flex flex-col justify-center items-center text-center
 # 常用指令：pull / push / images / rmi
 
 <!--
-觀念建立好了，接下來我們就實際動手，把 Image 相關最常用的四個指令走過一遍：pull、push、images、rmi。
-
-這四個指令幾乎是我們每天都會用到的基本操作，大家一定要練到反射動作。
+【段落轉換】
+第二部分實際操作 Image 相關的常用指令：pull、push、images、rmi、tag。這些是日常開發最頻繁使用的指令。
 -->
 
 ---
@@ -183,147 +186,158 @@ class: flex flex-col justify-center items-center text-center
 
 | 指令 | 說明 |
 | --- | --- |
-| `docker pull` | 從 Registry 下載 Image 到本機 |
-| `docker push` | 把本機的 Image 上傳到 Registry |
-| `docker images` | 列出本機所有的 Image |
-| `docker images -a` | 連中間層 Image 也一併列出 |
-| `docker rmi` | 刪除本機的 Image |
-| `docker tag` | 幫 Image 新增一個標籤（常搭配 push 使用） |
+| `docker pull` | 從 Registry 下載 Image 至本機 |
+| `docker push` | 將本機 Image 上傳至 Registry |
+| `docker images` | 列出本機所有 Image（等同 `docker image ls`） |
+| `docker rmi` | 刪除本機 Image（等同 `docker image rm`） |
+| `docker tag` | 為 Image 新增標籤（常搭配 push 使用） |
+| `docker image prune` | 刪除未被標記（dangling）的 Image |
 
 <!--
-這頁先給大家一張總表，等一下每個指令都會拆開來看實際範例。
+【重點解說】
+指令名稱即表達其動作：pull 下載、push 上傳、images 列出、rmi 為 remove image 的縮寫。
 
-大家可以先注意到，這幾個指令的動詞都很直覺：pull 是「拉」下來、push 是「推」上去、images 是「列出」、rmi 是 remove image 的縮寫。
-
-⚠️ 易錯點：`docker rmi` 不是 `docker rm`，`rm` 是刪除 Container，`rmi` 才是刪除 Image，兩個字很像但操作對象完全不同，很多新手會搞混。
+【易錯點提醒 ⚠️】
+`docker rmi` 與 `docker rm` 不同：rm 刪除 Container，rmi 刪除 Image。
 -->
 
 ---
 
 # docker pull — 範例
 
-先把 SSDS 之後會用到的基礎 Image 都抓下來：
+下載 SSDS 後續章節使用的基礎 Image：
 
 ```bash
-# 沒指定 tag，預設抓 latest（不建議用在專案上）
+# 未指定 tag 時預設為 latest（不建議用於專案）
 docker pull nginx
 
-# 指定版本，SSDS 專案統一用這幾個
-docker pull eclipse-temurin:21-jdk-alpine  # build 階段：用 ./gradlew 編譯後端
-docker pull eclipse-temurin:21-jre-alpine  # runtime：跑 ssds.jar
+# 指定版本：SSDS 專案統一使用以下 Image
+docker pull eclipse-temurin:21-jdk-alpine  # build 階段：以 ./gradlew 編譯後端
+docker pull eclipse-temurin:21-jre-alpine  # runtime：執行 ssds.jar
 docker pull node:22-alpine                 # build 階段：ng build 前端
-docker pull nginx:1.28-alpine              # runtime：服務 Angular 打包後的靜態檔
+docker pull nginx:1.30-alpine              # runtime：提供 Angular 靜態檔
 
-# 從公司內部私有 registry 下載
+# 從私有 Registry 下載
 docker pull registry-host:5000/myadmin/ssds-api:1.0.0
 ```
 
-執行後 Docker 會逐層（layer）顯示下載進度，如果本機已經有相同的 Layer，會直接顯示 `Already exists`，不會重複下載。
+下載時會逐層顯示進度；本機已存在的 Layer 會顯示 `Already exists`，不會重複下載。
 
 <!--
-這頁帶大家實際操作 pull 指令，順便把 SSDS 後面幾章要用的基礎 Image 先準備好。
+【帶讀關鍵行】
+- `docker pull nginx`：未指定 tag，預設下載 `latest`。
+- 下方四行為專案實際做法：明確指定版本，避免上游改版後行為或設定語法不相容。
+- 四個 Image 分為兩組：jdk 與 node 用於「編譯」，jre 與 nginx 用於「執行」。第四章的 multi-stage build 即以編譯用 Image 建置程式，最後只將成品放入執行用 Image。
 
-先看第一個範例，`docker pull nginx`，沒有指定 tag，Docker 預設會抓 `latest` 這個標籤。下面才是我們專案真正的做法：明確寫出版本。這在正式環境非常重要，因為 latest 會一直變動，哪天上游出了大改版，我們的 latest 就悄悄升上去了，設定檔語法或行為可能直接不相容。
+【概念定義】
+`eclipse-temurin:21-jre-alpine` 的命名意義：
+- temurin：Eclipse Adoptium 維護的 OpenJDK 發行版
+- 21：Java 版本，對應 build.gradle 中 toolchain 的 21
+- jre：僅包含執行環境，不含編譯器
+- alpine：精簡的 Linux 發行版
+選用 jre 與 alpine，Image 大小可由四百多 MB 降至約兩百 MB。
 
-⚠️ 易錯點：很多同學誤以為 `latest` 代表「最新穩定版」，但 latest 只是「一個標籤名稱」，維護者想指到哪個版本都可以。專案一律鎖版本。
+【易錯點提醒 ⚠️】
+`latest` 並非「最新穩定版」，只是一個標籤名稱，維護者可指向任何版本。專案中應一律指定版本。
 
-注意這裡抓了四個 Image，剛好兩兩一組：jdk 跟 node 是「編譯用」，jre 跟 nginx 是「執行用」。第四章的 multi-stage build 就是用編譯用的 Image 把程式 build 出來，最後只把成品放進執行用的 Image。
-
-另外看 `eclipse-temurin:21-jre-alpine` 這個名字：temurin 是 Eclipse 基金會維護的 OpenJDK 發行版，`21` 是 Java 版本，對應我們 build.gradle 裡 toolchain 的 21；`jre` 表示只有執行環境沒有編譯器；`alpine` 是很精簡的 Linux 發行版。光是選 jre 不選 jdk、選 alpine 不選一般版，Image 就可以從四百多 MB 降到一百多 MB。
-
-預期結果：執行完用 `docker images`，應該可以看到這幾個 Image 都躺在本機了。
+【預期結果】
+執行 `docker images` 可看到上述 Image 皆已下載至本機。
 -->
 
 ---
 
 # docker images / docker rmi — 範例
 
-查看本機有哪些 Image，以及刪除不需要的 Image：
-
 ```bash
-# 列出本機所有 Image
+# 列出本機所有 Image（Docker Engine 29 起的預設格式）
 docker images
 
-# REPOSITORY        TAG               IMAGE ID       SIZE
-# ssds-api          1.0.0             8f3c1a92be04   480MB
-# ssds-api          latest            8f3c1a92be04   480MB
-# ssds-web          1.0.0             2d47e5b310cc   95MB
-# node              22-alpine         c1d2e3f4a5b6   160MB
-# eclipse-temurin   21-jre-alpine     71e0d3f8a1b2   195MB
+# IMAGE                          ID             DISK USAGE   CONTENT SIZE   EXTRA
+# eclipse-temurin:21-jre-alpine  71e0d3f8a1b2      195MB         58MB
+# node:22-alpine                 c1d2e3f4a5b6      160MB         40MB
+# ssds-api:1.0.0                 8f3c1a92be04      480MB        170MB    U
+# ssds-api:latest                8f3c1a92be04      480MB        170MB    U
+# ssds-web:1.0.0                 2d47e5b310cc       95MB         26MB
 
-# 用 Image ID 刪除
+# 以 Image ID 刪除
 docker rmi 2d47e5b310cc
 
-# 用 repository:tag 刪除
+# 以 repository:tag 刪除
 docker rmi ssds-web:1.0.0
 ```
 
 <!--
-這頁把 images 跟 rmi 放在一起講，因為它們是一組「查看 → 清理」的操作。
+【帶讀關鍵行】
+- Docker Engine 29 起，`docker images` 的預設輸出改為 IMAGE（repository:tag 合併為一欄）、ID、DISK USAGE（解壓後佔用的磁碟空間）、CONTENT SIZE（壓縮後的內容大小，約等於 push 時的傳輸量）、EXTRA（`U` 表示有容器正在使用）。如需舊版的分欄格式，可使用 `docker images --format "table {{.Repository}}	{{.Tag}}	{{.ID}}	{{.Size}}"`。
+- `ssds-api:1.0.0` 與 `ssds-api:latest` 的 ID 相同，代表兩者為同一份 Image，只是有兩個標籤，磁碟上只佔一份空間。
 
-大家看這份清單，`ssds-api` 的 `1.0.0` 跟 `latest` 兩列，IMAGE ID 都是 8f3c1a92be04，完全一樣——代表它們其實是同一份 Image，只是貼了兩張不同的標籤紙，就像同一道菜可以同時叫「今日特餐」跟「主廚推薦」，硬碟上只佔一份空間。
+【重點解說】
+大小比較：ssds-web 不到 100MB，因為 Angular 打包後僅約 2MB 靜態檔加上精簡版 nginx；ssds-api 將近 500MB，其中 ssds.jar 接近 100MB（包含 Spring Boot、Apache POI、ICU4J 等套件），其餘為 JRE 與 Alpine。第四章介紹 multi-stage build 時會再比較。
 
-也順便看一下大小：`ssds-web` 不到 100MB，因為 Angular 打包出來只有約 2MB 的靜態檔案加上精簡版 nginx；`ssds-api` 將近 500MB，其中光是 ssds.jar 就快 100MB——我們的多模組專案帶了 Spring Boot、Apache POI、ICU4J 這些不小的套件，其餘是 JRE 與 Alpine。（Docker Desktop 的 SIZE 是解壓後佔用的硬碟空間；推到 Docker Hub 時傳輸的是壓縮後的大小，api 約 170MB、web 約 26MB。）這個大小差異在第四章講 multi-stage build 的時候會更有感覺。
+【易錯點提醒 ⚠️】
+Image 若仍有 Container 使用（無論執行中或已停止），docker rmi 會失敗。須先刪除相關 Container，或加上 -f 強制刪除。
 
-⚠️ 易錯點：如果這個 Image 目前有 Container 正在使用（不管是執行中還是停止狀態），直接 `docker rmi` 會刪除失敗，要先把相關的 Container 刪掉，或加上 `-f` 強制刪除（但要小心使用）。
-
-預期結果：刪除成功後，再執行一次 `docker images`，剛剛那個 Image 就不會出現在清單裡了。
+【預期結果】
+刪除後再次執行 docker images，該 Image 不再出現於清單中。
 -->
 
 ---
 
 # docker push — 語法與選項
 
-`docker image push [OPTIONS] NAME[:TAG]`，用來把本機的 Image 上傳到 Registry。
+`docker image push [OPTIONS] NAME[:TAG]`：將本機 Image 上傳至 Registry。
 
 | 選項 | 說明 |
 | --- | --- |
-| `-a`, `--all-tags` | 一次推送這個 Image 的所有標籤 |
-| `--platform` | 指定推送特定平台的版本，例如 `linux/amd64` |
-| `-q`, `--quiet` | 只顯示精簡輸出，不顯示詳細進度 |
+| `-a`, `--all-tags` | 推送該 repository 的所有標籤 |
+| `--platform` | 推送指定平台的版本，例如 `linux/amd64` |
+| `-q`, `--quiet` | 精簡輸出，不顯示詳細進度 |
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>重點：</b> push 之前一定要先 <code>docker login</code> 完成登入驗證，而且 Image 名稱前面要帶上目標 Registry 的位置，才知道要推去哪裡。
+💡 <b>重點：</b>push 前須先以 <code>docker login</code> 登入，且 Image 名稱須包含目標 Registry 位址與命名空間。
 </div>
 
 <!--
-這頁講 push 指令的語法結構，實際範例下一頁馬上就會看到。
+【概念定義】
+push 為 pull 的反向操作：將本機建置的 Image 上傳至 Registry，其他人或伺服器即可直接 pull 使用，不需重新建置。
 
-push 就是跟 pull 反過來，把我們本機做好的 Image 上傳到 Registry，讓其他人或其他伺服器可以直接 pull 下來用，不用再重新建置一次。
-
-⚠️ 易錯點：push 之前一定要先登入，沒登入會直接被拒絕，錯誤訊息通常會提示 unauthorized。另外要注意，Docker daemon 預設會「同時」推送 Image 的多個 Layer，不是一層一層乖乖排隊，所以進度條看起來會同時跳動好幾條。
+【易錯點提醒 ⚠️】
+- 未登入時 push 會被拒絕，錯誤訊息通常包含 unauthorized。
+- Docker 預設會同時推送多個 Layer，因此進度列會有多條同時更新。
 -->
 
 ---
 
 # docker push — 範例
 
-把本機建好的 `ssds-api` 推到公司內部 Registry，完整流程如下：
+將本機的 `ssds-api` 推送至公司內部 Registry：
 
 ```bash
-# Step 1：登入 registry
+# Step 1：登入 Registry
 docker login registry-host:5000
 
-# Step 2：幫本機 Image 打上目標位置的 tag
+# Step 2：為本機 Image 加上目標位置的 tag
 docker image tag ssds-api:1.0.0 registry-host:5000/myadmin/ssds-api:1.0.0
 
-# Step 3：推送上去
+# Step 3：推送
 docker push registry-host:5000/myadmin/ssds-api:1.0.0
 
-# 一次推送這個 repository 的所有標籤版本
+# 推送該 repository 的所有標籤
 docker push -a registry-host:5000/myadmin/ssds-api
 ```
 
 <!--
-這頁走一次完整的 push 流程，這也是實際工作上最常用到的組合技：tag + push。
+【帶讀關鍵行】
+本機的 `ssds-api:1.0.0` 不能直接推送，必須先以 `docker image tag` 加上包含目標 Registry 位址的名稱，Docker 才能判斷推送目的地。名稱未包含 Registry 位址時，預設推送至 Docker Hub。
 
-大家可以看到，我們不會直接把本機叫 `ssds-api:1.0.0` 的 Image push 出去，而是要先用 `docker image tag` 幫它「重新貼一張標籤」，把目標 Registry 的位置寫進去，Docker 才知道這個 Image 該送去哪裡。沒有前綴的話，Docker 預設就是往 Docker Hub 送。
+【業界實務】
+這些指令通常寫在 CI 腳本中：Gradle 建置 jar、docker build 建立 Image、加上版本 tag、push 至 Registry，伺服器端再 pull 並重新啟動。第八、九章會完整實作此流程。
 
-實務上這幾行不會是人手動打的，而是寫在 CI 腳本裡：Gradle build 完 jar、docker build 出 Image、打上 commit 版本的 tag、push 上 registry，然後伺服器那端 pull 下來重啟。這整條線我們第八章會完整走一次。
+【易錯點提醒 ⚠️】
+`docker image tag` 不是「改名」，而是「新增標籤」。原本的 `ssds-api:1.0.0` 仍然存在，兩個名稱指向同一個 Image ID。
 
-⚠️ 易錯點：`docker image tag` 不是「改名」，而是「新增一張標籤」，原本的 `ssds-api:1.0.0` 還是會存在，本機會同時看到兩個名稱但指向同一個 Image ID。
-
-預期結果：push 成功後，到 Docker Hub 或自己架設的 Registry 網頁上，應該就能看到剛剛上傳的這個 repository 跟 tag。
+【預期結果】
+推送成功後，可於 Registry 的網頁介面看到對應的 repository 與 tag。
 -->
 
 ---
@@ -334,94 +348,94 @@ class: flex flex-col justify-center items-center text-center
 # Docker Hub 與 Tag 命名規則
 
 <!--
-第三部分我們來看 Docker Hub 這個平台本身，還有一個大家實務上一定會遇到的問題：Tag 到底該怎麼命名？
-
-命名沒有規範，團隊合作的時候會很容易搞混版本，這部分會給大家一套實用的命名慣例。
+【段落轉換】
+第三部分介紹 Docker Hub 平台，以及 Tag 的命名慣例。缺乏命名規範時，團隊協作容易混淆版本。
 -->
 
 ---
 
 # 什麼是 Docker Hub？
 
-「Docker Hub 是全球最大的容器映像庫，協助開發者存儲、管理和分享 Image，確保容器化應用程式的可靠部署與分發。」
-
-Docker Hub 提供的核心功能：
+**Docker Hub** 是 Docker 官方的 Image Registry 服務，提供 Image 的儲存、管理與分享。
 
 | 功能 | 說明 |
 | --- | --- |
-| Repository（儲存庫）| 存放同一個專案不同版本 Image 的地方，公開儲存庫無限制，也有私人儲存庫選項 |
-| 官方 / 驗證 Image | 提供品質有保證的現成 Image，可以直接拿來當基礎 |
-| 自動化建置 | 可串接 GitHub / Bitbucket，程式碼一 push 就自動建置新 Image |
-| 搜尋與探索 | 可以直接在網站或用 `docker search` 找需要的 Image |
+| Repository（儲存庫） | 存放同一專案不同版本的 Image；公開儲存庫不限數量，免費帳號另可建立 1 個私人儲存庫 |
+| 官方 / 驗證 Image | 提供品質經驗證的 Image，可直接作為基礎 |
+| 拉取次數限制 | 匿名：每 IP 每 6 小時 100 次；免費帳號：每 6 小時 200 次 |
+| 搜尋 | 於網站或以 `docker search` 搜尋 Image |
 
 <!--
-這頁介紹 Docker Hub 這個平台整體長什麼樣子。
+【生活化比喻】
+Docker Hub 可視為「Image 版的 GitHub」：GitHub 存放程式碼，Docker Hub 存放打包好的 Image，同樣區分公開與私人儲存庫。
 
-我們可以把 Docker Hub 想成是「Image 界的 GitHub」——GitHub 存的是程式碼，Docker Hub 存的是打包好的 Image。而且它跟 GitHub 一樣，也有公開跟私人儲存庫的區別。
+【業界實務】
+企業內部專案通常使用私人 Repository 避免商業邏輯外流；開源工具則多放在公開 Repository。Docker Hub 的自動建置（Automated Builds）僅限付費方案，實務上多改用 GitHub Actions 建置後推送（第九章實作）。
 
-業界實務上，公司內部的專案通常會用私人 Repository，避免商業邏輯外流；而開源專案或工具類的 Image，通常會放在公開 Repository 讓大家自由使用。
+【重點提醒】
+課堂上多人共用同一個對外 IP 時，匿名的拉取額度容易用完，出現 `toomanyrequests` 錯誤；執行 `docker login` 登入後額度即提高。
 
-⚠️ 易錯點：很多新手會以為 Docker Hub 上的 Image 都是安全可信的，但其實任何人都可以上傳 Image，並不是每個都是官方認證。挑選 Image 時，建議優先選「Docker Official Image」或標示為「Verified Publisher」的來源。
+【易錯點提醒 ⚠️】
+任何人都能上傳 Image 至 Docker Hub，並非每個 Image 都安全可信。應優先選用標示為「Docker Official Image」或「Verified Publisher」的來源。
 -->
 
 ---
 
 # Tag（標籤）命名規則
 
-「Tag 是附加在 Image 名稱後面的識別字串，格式為 `repository:tag`，用來區分同一個 Image 的不同版本。」
-
-常見的命名慣例：
+**Tag** 是附加在 Image 名稱後的識別字串，格式為 `repository:tag`，用於區分同一 Image 的不同版本。
 
 | 命名方式 | 範例 | 用途 |
 | --- | --- | --- |
 | 語意化版本 | `ssds-api:1.4.2` | 明確標示版本號，正式環境首選 |
-| 主版本簡寫 | `ssds-api:1.4`、`ssds-api:1` | 允許在小版本內自動更新 |
-| latest | `ssds-api:latest` | 預設標籤，不建議在正式環境依賴它 |
+| 主版本簡寫 | `ssds-api:1.4`、`ssds-api:1` | 允許在次版本範圍內自動更新 |
+| latest | `ssds-api:latest` | 預設標籤，正式環境不應依賴 |
 | 環境標籤 | `ssds-api:staging`、`ssds-api:prod` | 依部署環境區分 |
-| Commit / 建置編號 | `ssds-api:git-a1b2c3d` | 精確對應到某一次程式碼版本，方便追蹤 |
+| Commit / 建置編號 | `ssds-api:git-a1b2c3d` | 精確對應某次程式碼版本，便於追蹤 |
 
 <!--
-這頁是整個 Tag 命名規則的重點，也是我們實際團隊合作時最容易吵架的地方，一定要花時間講清楚。
+【生活化比喻】
+若便當只標示「今日便當」而不寫日期，就無法得知是哪一天製作的。Tag 命名越明確，追查問題或回復版本越容易。
 
-生活比喻的話，如果便當店的便當都叫「今日便當」而不寫日期，我們永遠不知道自己吃到的是哪一天做的。Tag 命名也是一樣的道理，命名得越清楚，之後追查問題或回滾版本才會越輕鬆。
+【業界實務】
+成熟的團隊會為同一次建置同時加上多個 tag，例如 `1.4.2` 與 `git-a1b2c3d`：前者便於閱讀，後者可精確對應程式碼的 commit。
 
-業界實務上，比較成熟的團隊會同時打上多個 tag，例如同一個建置同時打上 `1.4.2` 跟 `git-a1b2c3d`，這樣既方便閱讀版本號，又能精確對應到程式碼的那次 commit。
-
-⚠️ 易錯點：正式環境（production）千萬不要只依賴 `latest` 這個標籤，因為 latest 會一直被覆蓋更新，今天部署的 latest 跟明天的 latest 內容可能完全不同，容易造成「本機測試沒問題，正式環境卻爆炸」的狀況。
+【易錯點提醒 ⚠️】
+正式環境不可只依賴 `latest`。latest 會持續被覆寫，今天與明天部署的 latest 內容可能完全不同，造成「本機測試正常、正式環境出錯」的情況。
 -->
 
 ---
 
 # Tag 命名 — 實際範例
 
-SSDS 後端發布一個新版本的完整流程：
+SSDS 後端發布新版本的流程：
 
 ```bash
-# 在 ai-products-selection-backend/ 目錄下建置 Image（Dockerfile 第四章會寫）
+# 在 ai-products-selection-backend/ 下建置 Image（Dockerfile 於第四章撰寫）
 docker build -t ssds-api:latest .
 
-# 同時貼上不同精細度的版本 tag
+# 加上不同精細度的版本 tag
 docker image tag ssds-api:latest ssds-api:1.4.2
 docker image tag ssds-api:latest ssds-api:1.4
 
-# 推送到 Docker Hub（帳號為 myaccount）
+# 推送至 Docker Hub（帳號為 myaccount）
 docker image tag ssds-api:latest myaccount/ssds-api:1.4.2
-docker push myaccount/ssds-api:1.4.2
-
-# 一次推送所有本機的 ssds-api 標籤
+docker image tag ssds-api:latest myaccount/ssds-api:1.4
 docker push -a myaccount/ssds-api
 ```
 
 <!--
-這頁把 Tag 命名規則落地成實際會打的指令，讓大家看到「概念」跟「動手做」是怎麼串起來的。
+【帶讀關鍵行】
+同一次建置加上 `latest`、`1.4`、`1.4.2` 三種精細度的 tag：測試環境可固定使用 `1.4`，自動取得修補版本；正式環境則鎖定 `1.4.2`，版本完全固定。
 
-大家可以注意到，這裡示範了同一個建置同時貼上三種不同精細度的 tag：`latest`、`1.4`、`1.4.2`，這在實務上很常見，方便不同情境的使用者選擇要抓哪一個版本。比方說測試環境可以固定抓 `1.4`，自動吃到修 bug 的小版本；正式環境則鎖死 `1.4.2`，什麼都不會自己動。
+【業界實務】
+版本號 `1.4.2` 通常來自 build.gradle 中的 `version = '1.4.2'`，由 CI 腳本讀取後作為 tag，使程式碼版本與 Image 版本一致。
 
-順帶一提，這個 `1.4.2` 從哪裡來？實務上通常就是 `build.gradle` 裡面 `version = '1.4.2'` 那一行，CI 腳本讀出來直接當 tag 用，程式碼版本跟 Image 版本就永遠對得起來。
+【易錯點提醒 ⚠️】
+推送至 Docker Hub 時，Image 名稱前須加上帳號或組織名稱（如 `myaccount/ssds-api`）；否則會被視為推送至官方命名空間 `library/`，遭到拒絕。
 
-⚠️ 易錯點：推送到 Docker Hub 時，Image 名稱前面一定要帶帳號或組織名稱（例如 `myaccount/ssds-api`），不然 Docker 會預設當作要推去 Docker 官方的命名空間，直接被拒絕。
-
-預期結果：推送完成後，到 Docker Hub 網站上該帳號的 Repository 頁面，應該能同時看到 `1.4.2` 和 `1.4` 兩個 tag。
+【預期結果】
+推送完成後，Docker Hub 上該帳號的 Repository 頁面顯示 `1.4.2` 與 `1.4` 兩個 tag。
 -->
 
 ---
@@ -431,101 +445,120 @@ layout: default
 # 練習 1：準備 SSDS 的基礎 Image
 ### 任務說明
 
-我們要把 SSDS 後面幾章需要的基礎 Image 先準備好。請完成以下操作：
+準備 SSDS 後續章節所需的基礎 Image：
 
-1. 從 Docker Hub 下載 `eclipse-temurin` 的 `21-jre-alpine` 版本（之後用來跑 `ssds.jar`）
-2. 用 `docker images` 確認本機已經有這個 Image，並記下它的 IMAGE ID 與大小
-3. 幫這個 Image 新增一個標籤，命名為 `ssds-runtime:v1`
+1. 從 Docker Hub 下載 `eclipse-temurin:21-jre-alpine`（用於執行 `ssds.jar`）
+2. 以 `docker images` 確認本機已有此 Image，記錄其 ID 與大小
+3. 為此 Image 新增標籤 `ssds-runtime:v1`
 4. 刪除原本的 `eclipse-temurin:21-jre-alpine` 標籤（保留 `ssds-runtime:v1`）
-5. 再執行一次 `docker images`，確認 `ssds-runtime:v1` 還在，而且 IMAGE ID 跟第 2 步記下的一樣
+5. 再次執行 `docker images`，確認 `ssds-runtime:v1` 仍存在，且 ID 與第 2 步相同
 
 <!--
-這一題是基本功練習，檢驗大家對 pull / images / tag / rmi 四個指令的熟練度，順便把第四章要用的 runtime Image 先抓下來。
+【任務鋪陳】
+本題練習 pull、images、tag、rmi 四個指令，同時下載第四章將使用的 runtime Image。
 
-引導思考：大家覺得如果直接刪除 `eclipse-temurin:21-jre-alpine`，剛剛貼的 `ssds-runtime:v1` 會不會也一起消失？想想看 Image ID 跟 tag 之間的關係。第 5 步就是要大家自己驗證這件事。
+【問題引導】
+刪除 `eclipse-temurin:21-jre-alpine` 後，`ssds-runtime:v1` 是否會一併消失？請從 Image ID 與 tag 的關係思考，並於第 5 步驗證。
 -->
 
 ---
 layout: default
 ---
 
-# 練習 1：解題提示
-### 提示說明
+# 練習 1：參考答案
 
 ```bash
+# 1. 下載
 docker pull eclipse-temurin:21-jre-alpine
-docker images                       # 記下 IMAGE ID，約 187MB
+
+# 2. 確認並記錄 ID（例如 71e0d3f8a1b2）與 DISK USAGE（約 195MB）
+docker images eclipse-temurin
+
+# 3. 新增標籤
 docker image tag eclipse-temurin:21-jre-alpine ssds-runtime:v1
+
+# 4. 移除原標籤：輸出 Untagged: eclipse-temurin:21-jre-alpine
 docker rmi eclipse-temurin:21-jre-alpine
-docker images                       # ssds-runtime:v1 還在，ID 不變
+
+# 5. ssds-runtime:v1 仍存在，ID 與第 2 步相同
+docker images ssds-runtime
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>提示：</b> tag 只是貼在同一個 Image ID 上的標籤紙，刪除其中一個標籤不會刪掉底層的 Image，只要還有至少一個 tag 指著它，Image 就還在。
+💡 <b>說明：</b>tag 只是指向 Image ID 的標籤。刪除其中一個標籤時僅輸出 <code>Untagged</code>，底層 Image 不會刪除；只有在最後一個標籤也被移除時，Image 才會從磁碟刪除（輸出 <code>Deleted</code>）。
 </div>
 
 <!--
-公布解答，順便解釋第 4 步背後的原理。
+【帶讀解法】
+第 4 步的輸出只有 `Untagged`，沒有 `Deleted`，即證明底層 Image 仍然存在。
 
-⚠️ 這題最容易錯的地方，是同學會擔心「刪掉 eclipse-temurin 會不會連 ssds-runtime:v1 也一起不見」，答案是不會。反過來說，如果最後一個 tag 也被刪掉，那份 Image 才會真的從硬碟上消失。
+【易錯點提醒 ⚠️】
+若刪除的是最後一個指向該 Image 的標籤，Image 才會真正從磁碟刪除。
 
-預期結果：最後一次 `docker images` 只會看到 `ssds-runtime:v1`，看不到 `eclipse-temurin`，但兩者的 IMAGE ID 完全相同。
+【預期結果】
+最後一次 docker images 只顯示 `ssds-runtime:v1`，不再顯示 `eclipse-temurin:21-jre-alpine`，兩者的 ID 相同。
 -->
 
 ---
 layout: default
 ---
 
-# 練習 2：發布 ssds-api 到私有 Registry
+# 練習 2：發布 ssds-api 至私有 Registry
 ### 任務說明
 
-SSDS 後端修完一批 bug，要發布 `2.0.0` 版到公司內部的私有 Registry（位址 `registry-host:5000`，命名空間 `myadmin`）：
+SSDS 後端完成一批錯誤修正，要發布 `2.0.0` 版至公司內部私有 Registry（位址 `registry-host:5000`，命名空間 `myadmin`）：
 
-1. 本機已經有一個建置好的 Image，叫做 `ssds-api:latest`
-2. 幫它同時貼上 `2.0.0` 與 `2.0` 兩種精細度的版本標籤，並加上正確的 Registry 位置前綴
+1. 本機已有建置完成的 Image `ssds-api:latest`
+2. 為其加上 `2.0.0` 與 `2.0` 兩種版本標籤，並包含正確的 Registry 位址前綴
 3. 登入該 Registry
-4. 把 `2.0.0` 這個版本推送上去
-5. 想一想：測試環境的部署腳本應該固定抓哪一個 tag？正式環境呢？
+4. 推送 `2.0.0` 版本
+5. **思考題**：測試環境的部署腳本應使用哪一個 tag？正式環境呢？
 
 <!--
-這題比第一題更貼近實際工作場景，把 tag 命名規則跟 push 指令結合在一起。
+【任務鋪陳】
+本題結合 Tag 命名規則與 push 指令，情境與實際發布流程一致。
 
-引導思考：如果之後要讓其他同事直接抓「最新的 2.0 系列版本」而不用記完整版本號，我們應該怎麼設計 tag？
+【問題引導】
+若希望同事直接取得「最新的 2.0 系列版本」而不需記住完整版本號，tag 應如何設計？
 
-第 5 小題是這章的核心觀念：測試環境抓 `2.0`，這樣我們一發 2.0.1 的修補版，測試環境重啟就自動吃到新版；正式環境鎖 `2.0.0`，除非有人明確改版本號，否則永遠不會變。
-
-⚠️ 提醒大家，這題重點不只是「指令打得出來」，而是要想清楚 tag 該怎麼命名才符合語意化版本的精神。
+【重點提醒】
+本題重點不只是寫出指令，而是依語意化版本的精神設計 tag。
 -->
 
 ---
 layout: default
 ---
 
-# 練習 2：解題提示
-### 提示說明
+# 練習 2：參考答案
 
 ```bash
-# 貼上兩種精細度的版本標籤，並加上 registry 前綴
+# 2. 加上兩種版本標籤與 Registry 前綴
 docker image tag ssds-api:latest registry-host:5000/myadmin/ssds-api:2.0.0
 docker image tag ssds-api:latest registry-host:5000/myadmin/ssds-api:2.0
 
-# 登入私有 registry
+# 3. 登入私有 Registry
 docker login registry-host:5000
 
-# 推送指定版本
+# 4. 推送指定版本
 docker push registry-host:5000/myadmin/ssds-api:2.0.0
+
+# （選用）一次推送 2.0.0 與 2.0
+docker push -a registry-host:5000/myadmin/ssds-api
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>提示：</b> 想把 2.0.0 跟 2.0 一次推送完，可以改用 <code>docker push -a registry-host:5000/myadmin/ssds-api</code>。第 5 小題：測試環境抓 <code>2.0</code>（自動吃到修補版），正式環境鎖 <code>2.0.0</code>（版本完全固定）。
+💡 <b>第 5 題答案：</b>測試環境使用 <code>2.0</code>，發布 2.0.1 修補版後重新部署即自動取得；正式環境鎖定 <code>2.0.0</code>，除非明確修改版本號，否則不會變動。
 </div>
 
 <!--
-公布解答，也順便補充 `-a` 選項的用法，讓同學知道有更省力的做法。
+【帶讀解法】
+Image 名稱須完整包含 `registry-host:5000/myadmin/` 前綴，Docker 以此判斷推送的 Registry 與命名空間；遺漏前綴會推送至錯誤位置或失敗。
 
-⚠️ 易錯點提醒：Image 名稱前面一定要完整帶上 `registry-host:5000/myadmin/` 這串前綴，這是 Docker 用來判斷「要推去哪個 Registry、哪個帳號底下」的依據，漏掉就會推錯地方或直接失敗。
+【補充】
+`-a` 選項可一次推送該 repository 的所有標籤。
 
-預期結果：登入成功、推送完成後，去該 Registry 的網頁介面應該能看到 `ssds-api` 這個 repository，底下有 `2.0.0` 這個 tag。
+【預期結果】
+推送完成後，於 Registry 的網頁介面可看到 `ssds-api` repository 下的 `2.0.0` tag。
 -->
 
 ---
@@ -543,28 +576,28 @@ docker push registry-host:5000/myadmin/ssds-api:2.0.0
 <tr><th>重點</th><th>說明</th></tr>
 </thead>
 <tbody>
-<tr><td>Image vs Container</td><td>Image 是標準化的封裝模板，Container 是拿它啟動後的執行實例</td></tr>
-<tr><td>Layer 架構</td><td>Layer 一旦建立就不可修改，相同 Layer 可在不同 Image 間共用</td></tr>
-<tr><td>核心指令</td><td><code>pull</code> 下載、<code>push</code> 上傳、<code>images</code> 查看清單、<code>rmi</code> 刪除</td></tr>
-<tr><td>Registry</td><td>Docker Hub 是預設的全球 Registry，也可架設私有 Registry 存放內部 Image</td></tr>
-<tr><td>Tag 命名</td><td>建議搭配語意化版本（例如 <code>1.4.2</code>），正式環境避免只依賴 <code>latest</code></td></tr>
+<tr><td>Image vs Container</td><td>Image 是標準化的封裝模板，Container 是依 Image 啟動的執行實例</td></tr>
+<tr><td>Layer 架構</td><td>Layer 建立後不可修改，相同 Layer 可在不同 Image 間共用</td></tr>
+<tr><td>核心指令</td><td><code>pull</code> 下載、<code>push</code> 上傳、<code>images</code> 列出、<code>rmi</code> 刪除、<code>tag</code> 加標籤</td></tr>
+<tr><td>Registry</td><td>Docker Hub 為預設的公開 Registry；企業可架設私有 Registry</td></tr>
+<tr><td>Tag 命名</td><td>採用語意化版本（例如 <code>1.4.2</code>），正式環境避免依賴 <code>latest</code></td></tr>
 </tbody>
 </table>
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>記住：</b> Image 一旦 build 完成就不可變，要更新版本就該貼上新的 Tag，而不是覆蓋 <code>latest</code>。
+💡 <b>重點：</b>Image 建置後不可變；發布新版本應加上新的 Tag，而非覆寫 <code>latest</code>。
 </div>
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-🚀 <b>下一章：</b> 我們將進入容器操作，學習 `run`、`exec`、`logs` 等每天都會用到的指令。
+🚀 <b>下一章：</b>容器操作 — <code>run</code>、<code>exec</code>、<code>logs</code> 等日常指令。
 </div>
 
 <!--
-這一章的重點回顧一下。
+【回顧】
+本章說明了 Image 的分層設計，操作 pull、push、images、rmi、tag 等指令，並介紹 Docker Hub 的功能與 Tag 命名慣例。
 
-我們從「Image 是食譜、Container 是端出來的菜」這個比喻出發，理解了 Image 的分層設計，接著實際操作了 pull、push、images、rmi 四個最常用的指令，最後學了 Docker Hub 的功能跟 Tag 命名的實務慣例。
-
-學完這一章，我們應該能夠自己把一個應用程式打包、貼上有意義的版本標籤，然後推送到 Registry 上跟團隊分享了。下一章我們會進一步認識容器操作的細節。
+【課程預覽】
+下一章介紹容器操作，包含建立、進入、查看 log 與刪除容器。
 -->
 
 ---
@@ -576,7 +609,6 @@ layout: end
 有任何問題嗎？
 
 <!--
-現在開放 Q&A 時間。
-
-大家對 Image 的分層結構、pull/push/images/rmi 這幾個指令，或是 Tag 命名慣例，有沒有什麼疑問？都歡迎提出來討論。
+【互動引導】
+開放提問：Image 的分層結構、pull / push / images / rmi 指令，或 Tag 命名慣例，有任何疑問皆可提出。
 -->

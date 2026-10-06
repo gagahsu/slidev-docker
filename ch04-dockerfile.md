@@ -36,19 +36,22 @@ style: |
   <h1 style="color: #1a5c5c; font-size: 3.8rem; font-weight: 900; line-height: 1.15; margin-bottom: 1.5rem;">Dockerfile</h1>
   <div style="height: 4px; width: 320px; background: linear-gradient(90deg, #5eada0, #a7d9d0); border-radius: 2px; margin-bottom: 1.5rem;"></div>
   <p style="color: #4a7c7c; font-size: 1.15rem; font-style: italic;">
-    「一份寫下來的食譜，讓映像檔可以被重複、被驗證、被信任地做出來」
+    「以程式碼定義 Image，讓建置可重複、可驗證」
   </p>
   <Link to="home" style="margin-top: 2rem; color: #5eada0; font-size: 0.9rem;">← 返回目錄</Link>
 </div>
 
 <!--
-大家好，這一章我們要來學 Dockerfile。
+【開場白】
+本章主題是 Dockerfile。前幾章使用的 Image 皆由他人建立；若要建立自己的 Image，必須撰寫 Dockerfile。
 
-前面幾章我們學過怎麼拉取 image、怎麼操作 container，但那些 image 都是別人做好的。如果我們想做出屬於自己的 image，就要靠 Dockerfile。
+【概念定義】
+Dockerfile 是以文字逐行描述建置步驟的檔案：使用哪個基礎環境、複製哪些檔案、執行哪些指令。docker build 依照 Dockerfile 執行，即可重複產生相同的 Image。
 
-Dockerfile 是什麼呢？大家可以把它想成「食譜的文字版寫法」。食譜上一步一步寫著要放什麼料、怎麼處理，照著做就會得到同一道菜。Dockerfile 也是一樣，一行一行寫著要用什麼基礎環境、複製什麼檔案、跑什麼指令，docker build 照著做，就會產出同一個 image。
-
-今天這堂課會涵蓋三個重點：Dockerfile 常用指令、docker build 跟 layer cache 的觀念、還有 multi-stage build 跟 .dockerignore。準備好我們就開始吧。
+【學習目標】
+- 熟悉 Dockerfile 常用指令
+- 理解 docker build 與 layer cache 的運作
+- 以 multi-stage build 與 .dockerignore 撰寫 ssds-api、ssds-web 的正式 Dockerfile
 -->
 
 ---
@@ -57,26 +60,20 @@ layout: default
 
 # Outline
 
-<div class="text-left" style="font-size: 1.05rem; line-height: 2.2;">
-
-- **Dockerfile 常用指令** — FROM / COPY / RUN / CMD / ENTRYPOINT / EXPOSE / ENV
-- **docker build 與 Layer Cache** — 建構流程、快取命中與失效、多模組的眉角
-- **Multi-stage Build 與 .dockerignore** — 寫出 `ssds-api`、`ssds-web` 的正式 Dockerfile
-- **練習題** — 在自己的專案 build 出兩個 Image
-- **總結**
-
-</div>
+- **Dockerfile 常用指令**
+  - FROM / COPY / RUN / CMD / ENTRYPOINT / EXPOSE / ENV
+- **docker build 與 Layer Cache**
+  - 建置流程、快取命中與失效、多模組專案的寫法
+- **Multi-stage Build 與 .dockerignore**
+  - `ssds-api`、`ssds-web` 的正式 Dockerfile
+- **實作練習**
 
 <!--
-這是我們今天的路線圖。
+【帶讀大綱】
+本章分為三個部分：第一部分介紹 Dockerfile 常用指令；第二部分說明 docker build 的運作與 layer cache，SSDS 後端為 Gradle 多模組專案，快取寫法需特別處理；第三部分以 multi-stage build 與 .dockerignore 完成兩份正式 Dockerfile。
 
-第一部分先搞懂 Dockerfile 裡最常用的幾個指令，這些是寫任何 Dockerfile 都會用到的基本功。
-
-第二部分講 docker build 怎麼運作，還有一個很重要的觀念叫 layer cache，會直接影響我們 build 的速度。我們的後端是 Gradle 多模組專案，快取的寫法會比一般教學範例多一點眉角。
-
-第三部分講 multi-stage build 跟 .dockerignore，最後產出的兩份 Dockerfile，就是第五章 Compose、第九章部署到雲端會一直沿用的正式版本。
-
-最後留兩題練習題，請大家直接在自己的專案上做。
+【重點預告】
+本章產出的兩份 Dockerfile，第五章 Compose 與第九章雲端部署皆會沿用。
 -->
 
 ---
@@ -87,23 +84,20 @@ class: flex flex-col justify-center items-center text-center
 # Dockerfile 常用指令
 
 <!--
-我們先進入第一部分，來看 Dockerfile 裡最常見的幾個指令。
-
-這幾個指令幾乎每份 Dockerfile 都會用到，大家一定要熟悉它們的語法跟用途。
+【段落轉換】
+第一部分介紹 Dockerfile 中最常用的指令，這些指令幾乎出現在每一份 Dockerfile 中。
 -->
 
 ---
 
 # 什麼是 Dockerfile？
 
-Dockerfile 是一份純文字檔案，裡面一行一行寫著「怎麼組出一個 image」的步驟。
+**Dockerfile** 是描述 Image 建置步驟的純文字檔，`docker build` 依其內容逐行執行並產生 Image。
 
-「Dockerfile 是食譜的文字版：照著步驟做，就能在任何地方做出一模一樣的 image。」
-
-先看最陽春的版本：把第三章本機打包好的 `ssds.jar` 塞進 image 裡跑起來。
+最基本的版本：將第三章本機打包的 `ssds.jar` 放入 Image 中執行。
 
 ```dockerfile
-# ai-products-selection-backend/Dockerfile（第一版，之後會再改良）
+# ai-products-selection-backend/Dockerfile（第一版，後續改良）
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 COPY ssds-api/build/libs/ssds.jar app.jar
@@ -112,25 +106,27 @@ CMD ["java", "-jar", "app.jar"]
 ```
 
 ```bash
-./gradlew :ssds-api:bootJar -x test    # 先在本機打包出 jar
-docker build -t ssds-api:1.0.0 .       # 再包成 image
+./gradlew :ssds-api:bootJar -x test    # 本機打包 jar
+docker build -t ssds-api:1.0.0 .       # 建置 Image
 docker run -d --name ssds-api -p 8080:8080 --env-file .env ssds-api:1.0.0
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>注意事項：</b> Dockerfile 檔名預設就是 <code>Dockerfile</code>（沒有副檔名），放在專案根目錄；docker build 預設會去找這個檔名，也可以用 <code>-f</code> 指定其他檔名。
+💡 <b>注意：</b>Dockerfile 預設檔名為 <code>Dockerfile</code>（無副檔名），放在專案根目錄；如需使用其他檔名，以 <code>-f</code> 指定。
 </div>
 
 <!--
-先給大家看一份最容易理解的 Dockerfile，等一下我們會一行一行拆解。
+【帶讀關鍵行】
+此 Dockerfile 將第三章的 docker run 參數固定於 Image 中：以僅含 JRE 21 的 Image 為基礎，設定工作目錄為 /app，複製 ssds.jar 並更名為 app.jar，宣告使用 8080 port，最後指定啟動時執行 java -jar。
 
-這份做的事情就是把第三章那串很長的 docker run 指令「固化」進 image：用只有 JRE 21 的輕量 image 當基礎，設定工作目錄到 /app，把 Gradle 打包好的 ssds.jar 複製進去改名成 app.jar，宣告會用到 8080 port，最後指定容器啟動時執行 java -jar。
+【回顧】
+第三章需以 -v 掛載 jar、以 -w 設定工作目錄、自行輸入 java -jar；改用 Dockerfile 後，docker run 只需指定 port 與 --env-file。
 
-大家比較一下第三章的寫法：那時候要 -v 把 jar 資料夾借給容器、要 -w 設工作目錄、最後還要自己打 java -jar。現在這些都寫進 Dockerfile 了，docker run 只剩下 port 跟 --env-file。
+【重點提醒】
+--env-file 仍須在執行時提供。機密值不寫入 Image，只在執行時注入，此原則於第八、九章持續沿用。
 
-⚠️ 注意 --env-file 還是要帶。機密值「永遠不進 image」，是在執行的時候才給——這個原則第八章、第九章會一直出現。
-
-這個流程的缺點是：它假設「每個要 build image 的人電腦上都裝好 JDK 21」。第九章雲端平台幫我們 build 的時候，它的機器上可沒有我們的 build 目錄。這個問題第三部分用 multi-stage build 解決，讓 Gradle 也跑在容器裡。
+【易錯點提醒 ⚠️】
+此版本假設建置者的電腦已安裝 JDK 21 並完成打包。第九章由雲端平台建置時，平台上沒有本機的 build 目錄。第三部分將以 multi-stage build 讓 Gradle 也在容器中執行，解決此問題。
 -->
 
 ---
@@ -139,20 +135,28 @@ docker run -d --name ssds-api -p 8080:8080 --env-file .env ssds-api:1.0.0
 
 | 指令 | 用途 |
 | --- | --- |
-| `FROM` | 指定基礎 image，開啟一個新的建構階段 |
-| `COPY` | 把檔案或目錄從建構上下文複製進 image |
-| `RUN` | 在建構過程中執行指令（例如安裝套件、編譯） |
-| `CMD` | 指定容器啟動時的預設執行指令 |
-| `ENTRYPOINT` | 把容器設定成像一個可執行檔一樣運作 |
-| `EXPOSE` | 宣告容器會用到的網路埠（僅作說明用） |
-| `ENV` | 設定環境變數，build 跟 run 階段都會生效 |
+| `FROM` | 指定基礎 Image，開始一個新的建置階段 |
+| `COPY` | 將建置上下文中的檔案或目錄複製進 Image |
+| `RUN` | 建置過程中執行指令（例如安裝套件、編譯） |
+| `CMD` | 指定容器啟動時的預設指令或參數 |
+| `ENTRYPOINT` | 指定容器啟動時固定執行的程式 |
+| `EXPOSE` | 宣告容器使用的 port（僅作說明，不會實際開放） |
+| `ENV` | 設定環境變數，建置與執行階段皆有效 |
 | `WORKDIR` / `USER` | 設定工作目錄 / 切換執行身分 |
+
+<!--
+【重點解說】
+上表為撰寫 Dockerfile 最常用的指令，下一頁以完整範例示範其搭配方式。
+
+【易錯點提醒 ⚠️】
+EXPOSE 僅為文件性質的宣告，實際對外開放 port 仍須於 docker run 時以 -p 指定。
+-->
 
 ---
 
 # Dockerfile 常用指令 — 範例
 
-把常用指令都用上，寫一份比較完整的 `ssds-api` Dockerfile：
+使用上述指令撰寫較完整的 `ssds-api` Dockerfile：
 
 ```dockerfile
 FROM eclipse-temurin:21-jre-alpine
@@ -168,77 +172,74 @@ CMD ["--server.port=8080"]
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>ENV 語法：</b> 現行寫法一律用 <code>ENV KEY=VALUE</code>，舊式 <code>ENV KEY VALUE</code>（沒有等號）已經是過時寫法，官方文件建議不要再用。
+💡 <b>ENV 語法：</b>使用 <code>ENV KEY=VALUE</code>。舊式 <code>ENV KEY VALUE</code>（無等號）已不建議使用。
 </div>
 
 <!--
-這份範例把 ENV、RUN、USER、ENTRYPOINT、CMD 都放進來，讓大家看看它們怎麼搭配。
-
-`ENV SPRING_PROFILES_ACTIVE=prod`：我們專案的 application.properties 寫的是 `spring.profiles.active=${SPRING_PROFILES_ACTIVE:dev}`，不設的話預設跑 dev，會開 show-sql 跟 SQL 參數 trace，log 量非常大。image 裡預設 prod，正式環境就安靜；本機想看 SQL 的時候 docker run 加 `-e SPRING_PROFILES_ACTIVE=dev` 就能蓋掉。
-
-那個 RUN addgroup / adduser 加上 USER app 是資安上的好習慣：容器裡的行程預設是用 root 跑的，萬一應用程式被攻破，攻擊者在容器內就是 root。建一個沒有特權的使用者來跑 java，風險小很多。
-
-⚠️ 注意 `mkdir -p /app/uploads && chown`：我們的專案會把商品圖片寫到 `./uploads/product`。切成 app 使用者之後，如果 /app 還是 root 的，Spring Boot 一寫檔就是 Permission denied。所以要在切換身分「之前」，先用 root 把目錄建好、把擁有者改成 app。第七章掛 Volume 時這個目錄也會用到。
-
-ENTRYPOINT 加 CMD 的組合，意思是「這個容器就是拿來跑這支 jar 的（ENTRYPOINT 固定），但啟動參數可以換（CMD 可覆蓋）」。所以 `docker run ssds-api:1.0.0 --server.port=9090` 就會用 9090 起服務，Spring Boot 會自動吃這個命令列參數。
-
-⚠️ 版本注意：ENV 一律寫成 KEY=VALUE 的等號形式，舊式沒有等號的寫法官方已列為過時。
+【帶讀關鍵行】
+- `ENV SPRING_PROFILES_ACTIVE=prod`：專案的 application.properties 為 `spring.profiles.active=${SPRING_PROFILES_ACTIVE:dev}`，未設定時預設為 dev，會開啟 show-sql 與 SQL 參數 trace，log 量大。Image 預設為 prod；本機需要查看 SQL 時，以 `-e SPRING_PROFILES_ACTIVE=dev` 覆蓋。
+- `RUN addgroup / adduser` 與 `USER app`：容器內行程預設以 root 執行，應用程式若遭入侵，攻擊者即取得容器內的 root 權限。改以無特權使用者執行可降低風險。
+- `mkdir -p /app/uploads && chown`：專案將商品圖片寫入 `./uploads/product`。切換為 app 使用者後，若 /app 仍屬於 root，寫入時會發生 Permission denied。因此須在切換身分前，以 root 建立目錄並變更擁有者。第七章掛載 Volume 時亦會使用此目錄。
+- `ENTRYPOINT` + `CMD`：ENTRYPOINT 固定執行 jar，CMD 提供可覆蓋的預設參數。執行 `docker run ssds-api:1.0.0 --server.port=9090` 即以 9090 啟動，Spring Boot 會讀取此命令列參數。
 -->
 
 ---
 
-# 什麼是 CMD 與 ENTRYPOINT 的差異？
+# CMD 與 ENTRYPOINT 的差異
 
-「ENTRYPOINT 決定容器『是什麼』，CMD 決定容器『預設帶什麼參數執行』。」
+`ENTRYPOINT` 決定容器執行的程式，`CMD` 提供預設參數。
 
 | 情境 | 行為 |
 | --- | --- |
-| 只有 `CMD ["exec","p1"]` | 容器啟動時執行 `exec p1` |
-| 只有 `ENTRYPOINT ["exec","p1"]` | 容器啟動時一定執行 `exec p1`，`docker run` 後面接的參數會補在後面 |
-| `ENTRYPOINT ["exec","p1"]` + `CMD ["p2"]` | 執行 `exec p1 p2`，`p2` 是可被覆蓋的預設參數 |
-| `ENTRYPOINT` 用殼層式（無中括號） | 會忽略 `CMD` 與 `docker run` 傳入的任何參數 |
+| 只有 `CMD ["exec","p1"]` | 啟動時執行 `exec p1`；`docker run` 後的參數會取代整個 CMD |
+| 只有 `ENTRYPOINT ["exec","p1"]` | 啟動時必定執行 `exec p1`，`docker run` 後的參數附加於後 |
+| `ENTRYPOINT ["exec","p1"]` + `CMD ["p2"]` | 執行 `exec p1 p2`，`p2` 為可覆蓋的預設參數 |
+| `ENTRYPOINT` 使用 shell 形式（無中括號） | 忽略 `CMD` 與 `docker run` 傳入的參數 |
 
 <!--
-這頁是很多人剛學 Dockerfile 時最容易搞混的地方，我們用便當盒來比喻一下。
+【生活化比喻】
+ENTRYPOINT 如同便當盒本身，用途固定；CMD 如同預設的菜色，點餐時可以更換。
 
-ENTRYPOINT 就像便當盒本身——不管你怎麼換菜色，這個盒子的用途不會變。CMD 則像是預設配好的菜色，你可以在點餐的時候臨時換掉。
+【核心說明】
+只有 CMD 時，docker run 後的參數會取代整個 CMD；同時有 ENTRYPOINT 與 CMD 時，docker run 後的參數只取代 CMD 部分，ENTRYPOINT 維持不變。
 
-所以如果只有 CMD，docker run 後面加的參數會整個「取代」CMD。但如果同時有 ENTRYPOINT 跟 CMD，docker run 後面加的參數只會取代 CMD 那部分，ENTRYPOINT 本身是不會被換掉的。
-
-⚠️ 易錯點：ENTRYPOINT 如果寫成殼層式，也就是沒有中括號的那種寫法，官方文件明確說它會忽略 CMD 跟執行時傳入的參數，而且 java 會變成 sh 的子行程，docker stop 送的 SIGTERM 收不到，Spring Boot 沒辦法優雅關閉，等 10 秒後被強制砍掉。寫的時候一律用中括號。
+【易錯點提醒 ⚠️】
+ENTRYPOINT 使用 shell 形式（無中括號）時，除了忽略 CMD 與執行時參數外，java 會成為 sh 的子行程，無法收到 docker stop 送出的 SIGTERM；Spring Boot 因此無法正常關閉，10 秒後被強制終止。應一律使用 exec 形式（中括號）。
 -->
 
 ---
 
-# 容器化前的準備：加上 Actuator 健康檢查
+# 容器化前的準備：加入 Actuator 健康檢查
 
-第五章 healthcheck、第九章雲端平台都需要一個「問一下就知道活著沒」的網址：
+第五章 healthcheck 與第九章雲端平台，都需要可判斷服務狀態的端點：
 
 ```groovy
-// ssds-api/build.gradle — dependencies 區塊加一行
+// ssds-api/build.gradle — dependencies 區塊加入
 implementation 'org.springframework.boot:spring-boot-starter-actuator'
 ```
 
 ```bash
-# 重新 bootRun 或 build 之後
+# 重新 bootRun 或 build 後
 curl http://localhost:8080/api/v1/actuator/health
 # {"status":"UP"}
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-⚠️ <b>路徑注意：</b> 專案設定了 <code>server.servlet.context-path=/api/v1</code>，所以 actuator 也在 <code>/api/v1</code> 底下，<b>不是</b> <code>/actuator/health</code>。
+⚠️ <b>路徑：</b>專案設定 <code>server.servlet.context-path=/api/v1</code>，actuator 亦位於 <code>/api/v1</code> 之下，<b>不是</b> <code>/actuator/health</code>。
 </div>
 
 <!--
-在寫正式的 Dockerfile 之前，我們先對專案做一個很小的改動：加上 Spring Boot Actuator。
+【問題引導】
+容器狀態為 Up 並不代表服務可用：Spring Boot 啟動需十數秒，期間 java 行程已存在但尚無法提供服務；也可能已啟動但無法連線 Supabase。Docker、Compose 與雲端平台都需要判斷服務是否就緒的方法。
 
-為什麼？容器跑起來之後，Docker、Compose、雲端平台都需要一個方法判斷「這個服務到底好了沒」。光看容器是 Up 不夠——Spring Boot 啟動要十幾秒，中間 java 行程早就在了，但還沒辦法服務；或是跑起來了，但連不上 Supabase。Actuator 的 /health 端點會實際檢查資料庫連線，全部正常才回 UP。
+【核心說明】
+Actuator 的 /health 端點會實際檢查資料庫連線等元件，全部正常時才回傳 UP。只需加入一行相依套件，版本由 Spring Boot BOM 管理。專案 SecurityConfig 目前為全部 permitAll，不需另外開放權限。
 
-加一行依賴就好，版本由 Spring Boot BOM 決定，不用寫。我們專案的 SecurityConfig 目前是全部 permitAll，所以不用另外開放權限。
+【易錯點提醒 ⚠️】
+專案 CONTEXT.md 規定 context-path 為 /api/v1，actuator 也位於此前綴下。第五章與第九章設定健康檢查路徑時必須寫成 /api/v1/actuator/health；路徑錯誤會導致平台持續判定服務異常並反覆重啟。
 
-⚠️ 注意路徑：大家專案 CONTEXT.md 裡有寫，context-path 統一設成 /api/v1，所以 actuator 也被移到這個前綴底下。第五章跟第九章設定健康檢查路徑的時候，一定要寫 /api/v1/actuator/health，寫錯的話平台會一直判定服務掛掉、不斷重啟。
-
-預期結果：本機重新啟動後，打這個網址會回 {"status":"UP"}。這個改動請 commit 進專案，後面每一章都會用到。
+【預期結果】
+重新啟動後呼叫此網址回傳 {"status":"UP"}。請將此修改 commit 至專案，後續各章皆會使用。
 -->
 
 ---
@@ -249,64 +250,71 @@ class: flex flex-col justify-center items-center text-center
 # docker build 與 Layer Cache
 
 <!--
-接下來進入第二部分，來看看 docker build 到底在背後做了什麼事，還有一個對建構效率影響很大的觀念：layer cache（層快取）。
+【段落轉換】
+第二部分說明 docker build 的運作，以及影響建置效率的 layer cache（層快取）機制。
 -->
 
 ---
 
 # 什麼是 docker build？
 
-「docker build 會把 Dockerfile 逐行讀進去，每一行變成一個 layer（層），疊起來組成最終的 image。」
+`docker build` 依序執行 Dockerfile 的指令，每個會變更檔案系統的指令產生一個 layer，疊加組成最終的 Image。
 
 ```bash
 # 在 ai-products-selection-backend/ 目錄下執行
 docker build -t ssds-api:1.0.0 .
 
-# 在上一層目錄，指定建構上下文與 Dockerfile 位置
+# 在上一層目錄執行：以 -f 指定 Dockerfile，最後一個參數為建置上下文
 docker build -t ssds-web:1.0.0 \
   -f ai-products-selection-frontend/Dockerfile ai-products-selection-frontend
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>版本注意：</b> Docker 23.0 之後，docker build 預設就是用 BuildKit 引擎執行（不用再手動設定 <code>DOCKER_BUILDKIT=1</code>），BuildKit 的建構速度與快取管理都比舊版引擎更好。
+💡 <b>BuildKit：</b>Docker Engine 23.0 起，docker build 預設使用 BuildKit 引擎（不需設定 <code>DOCKER_BUILDKIT=1</code>），建置速度與快取管理皆優於舊版引擎。
 </div>
 
 <!--
-docker build 這個指令做的事情，就是把我們寫好的 Dockerfile 一行一行讀進去執行，每執行完一行產生一個 layer，這些 layer 疊起來就是最終的 image。
+【帶讀關鍵行】
+- `-t ssds-api:1.0.0`：指定 Image 名稱與版本。
+- 最後的 `.`：建置上下文（build context），Docker 會將此目錄的檔案送交建置程序使用。
+- 第二個範例：在專案外層建置前端，-f 指定 Dockerfile 位置，最後一個參數指定上下文為前端資料夾。第五章 Compose 的 build.context 即對應此設定。
 
-指令裡的 -t ssds-api:1.0.0 是幫 image 取名字加版本號，最後那個點代表「建構上下文」，也就是 Docker 會把當前目錄的檔案送給建構程序使用。
-
-⚠️ 這個點很重要：Dockerfile 裡所有 COPY 的來源路徑，都是「相對於建構上下文」。如果在錯的目錄執行 docker build，COPY ssds-api/build/libs/ssds.jar 就會報 not found，因為那個檔案根本沒被送進上下文。
-
-第二行示範在專案外層 build 前端：-f 指定 Dockerfile 在哪，最後一個參數指定上下文是前端資料夾。第五章 Compose 的 build.context 就是在設定這個。
-
-⚠️ 版本注意：現在的 Docker（23.0 以後）預設就是用 BuildKit 這個新引擎在跑 build，以前舊版要手動加環境變數 DOCKER_BUILDKIT=1 才會啟用，現在不用了，是預設行為。
+【易錯點提醒 ⚠️】
+Dockerfile 中所有 COPY 的來源路徑皆相對於建置上下文。在錯誤目錄執行 docker build，`COPY ssds-api/build/libs/ssds.jar` 會出現 not found，因為該檔案不在上下文中。
 -->
 
 ---
 
 # 什麼是 Layer Cache？
 
-「Layer cache 就像料理時已經切好的菜，只要食材沒變，下次做菜就不用重新切，直接拿來用。」
+**Layer cache**：建置時若某一步驟的指令與輸入內容未變，Docker 直接重用先前產生的 layer，不重新執行。
 
 | 觀念 | 說明 |
 | --- | --- |
-| Layer（層） | Dockerfile 每一行指令執行後產生的結果快照 |
-| Cache 命中 | 該行指令與依賴內容沒變，直接重用舊 layer |
-| Cache 失效 | 該行或前面任何一行有變動，這行以後全部重新執行 |
-| 由上而下比對 | Docker 由 Dockerfile 第一行開始逐行比對，一旦某行失效，後面全部跟著失效 |
-| COPY 比對內容 | `COPY` 會比對檔案內容的 checksum，檔案一改就失效 |
+| Layer（層） | Dockerfile 指令執行後產生的檔案系統快照 |
+| 快取命中 | 指令與輸入內容未變，直接重用舊 layer（輸出顯示 `CACHED`） |
+| 快取失效 | 該步驟有變動，該步驟及其後所有步驟重新執行 |
+| 由上而下比對 | 從第一行開始逐行比對，某行失效後，後續全部失效 |
+| COPY 比對內容 | `COPY` 比對檔案內容的 checksum，檔案修改即失效 |
+
+<!--
+【生活化比喻】
+如同料理時已切好的食材：食材未變時，下次料理可直接使用，不需重新處理。
+
+【重點解說】
+快取由上而下比對，因此 Dockerfile 指令的排列順序直接影響建置速度。下一頁以 SSDS 後端示範。
+-->
 
 ---
 
-# Layer Cache — 範例：Gradle 多模組依賴
+# Layer Cache — 範例：Gradle 多模組相依套件
 
 ```dockerfile
-# 錯誤示範：原始碼跟建構檔一起複製
+# 錯誤示範：原始碼與建置設定一起複製
 COPY . .
-RUN ./gradlew --no-daemon :ssds-api:bootJar   # 改一行 Java 就要重抓所有依賴
+RUN ./gradlew --no-daemon :ssds-api:bootJar   # 修改任何 Java 檔都會重新下載所有依賴
 
-# 正確示範：先複製「所有」Gradle 設定，把依賴下載鎖在一層
+# 正確示範：先複製所有 Gradle 設定，將依賴下載固定為獨立一層
 COPY gradlew settings.gradle build.gradle ./
 COPY gradle ./gradle                           # wrapper + libs.versions.toml
 COPY ssds-api/build.gradle         ssds-api/
@@ -321,49 +329,52 @@ RUN ./gradlew --no-daemon :ssds-api:bootJar -x test
 ```
 
 <!--
-這頁是整章對大家日常工作影響最大的一頁。
+【帶讀關鍵行】
+- 錯誤示範：`COPY . .` 複製包含 Java 原始碼在內的整個專案。修改任何一行 Controller，此層即失效，後續 gradlew 全部重新執行：重新下載 Gradle 9.5.1、重新從 Maven Central 下載 Spring Boot、POI、ICU4J 等相依套件，每次建置需數分鐘。
+- 正確示範：將「很少變動」與「經常變動」的檔案分開。多模組專案解析相依套件需要：
+  - gradlew 與 gradle 目錄（wrapper 腳本、wrapper jar、版本目錄 libs.versions.toml）
+  - 根目錄的 settings.gradle、build.gradle
+  - 六個子模組各自的 build.gradle（settings.gradle include 了六個模組，缺少任一個 Gradle 即會報錯）
+- 執行 `:ssds-api:dependencies` 將可執行模組所需的相依套件下載至此層；之後才複製全部原始碼並執行 bootJar。只要 build.gradle 未修改，相依套件層就會命中快取。
 
-先看錯誤示範。`COPY . .` 把整個專案複製進去，包含所有 Java 檔。結果就是我們只要改一行 Controller，這層的內容就變了，快取失效，後面的 gradlew 整條重跑——重新下載 Gradle 9.5.1 本體、重新從 Maven Central 下載 Spring Boot、POI、ICU4J 那一大包依賴。改一行程式碼等好幾分鐘。
+【補充】
+- `-x test`：跳過測試。部分測試使用 Testcontainers，需在建置容器中再啟動 Docker，過於複雜；測試應於本機或 CI 執行。
+- `--no-daemon`：容器建置為一次性執行，保留 Gradle daemon 沒有意義。
+- 進階寫法：BuildKit 支援 `RUN --mount=type=cache,target=/root/.gradle`，可讓 Gradle 快取跨建置保留，即使快取層失效也不需重新下載全部依賴。
 
-正確示範的思路是：把「很少變的」跟「一直變的」分開。我們是多模組專案，Gradle 要能解析依賴，需要的東西比單模組多：
-- gradlew 跟 gradle 目錄：wrapper 腳本、wrapper jar，還有版本目錄 libs.versions.toml 也在 gradle 目錄裡
-- 根目錄的 settings.gradle、build.gradle
-- 六個子模組各自的 build.gradle——settings.gradle 裡 include 了六個模組，少一個 Gradle 就會抱怨找不到專案設定
-
-跑一次 `:ssds-api:dependencies` 把可執行模組需要的依賴抓進這一層；接著才 COPY 全部原始碼，跑 bootJar。只要沒動任何 build.gradle，依賴那層永遠命中快取。
-
-`-x test` 是跳過測試：我們有些測試會用 Testcontainers，要在 build 容器裡再開 Docker，太複雜；測試留在本機或 CI 跑。`--no-daemon`：容器建構是一次性的，Gradle daemon 留著沒意義。
-
-⚠️ 新增模組的時候記得回來這裡補一行 COPY，否則 Gradle 會在依賴那層失敗。
+【易錯點提醒 ⚠️】
+新增子模組時，須在此處補上對應的 COPY，否則相依套件層會失敗。
 -->
 
 ---
 
-# 使用 Layer Cache 的注意事項
+# Layer Cache 的排序原則
 
-「把常變動的指令放後面，把穩定不變的指令放前面，快取效益才會最大。」
+將穩定的步驟放在前面、經常變動的步驟放在後面，快取效益最大。
 
 | 原則 | 說明 |
 | --- | --- |
-| 依賴安裝要早 | `build.gradle`（後端）、`package.json` + `package-lock.json`（前端）先 COPY 進去再安裝 |
-| 原始碼複製要晚 | `src/` 底下的 Java 與 TypeScript 幾乎天天改，放在依賴安裝之後再 COPY |
-| 順序決定快取範圍 | 只要某一行失效，Dockerfile 裡它之後的每一行都會重新執行 |
-| `--no-cache` | 建構時強制忽略所有快取，從頭重新跑一次 |
+| 先安裝相依套件 | 先 COPY `build.gradle`（後端）、`package.json` + `package-lock.json`（前端）再安裝 |
+| 後複製原始碼 | `src/` 下的 Java 與 TypeScript 經常修改，於安裝相依套件後再 COPY |
+| 順序決定快取範圍 | 某行失效後，其後所有步驟皆重新執行 |
+| `--no-cache` | 忽略所有快取，從頭重新建置 |
 
 ```bash
 docker build --no-cache -t ssds-api:1.0.0 .
 ```
 
 <!--
-這頁的觀念很重要，先講結論：常常改動的東西放後面，很少改動的東西放前面。
+【核心說明】
+Docker 由上而下比對，某一行內容變動時，該行與其後所有步驟都必須重新執行，無論後續步驟本身是否變動。
 
-為什麼呢？因為 Docker 是由上往下比對的，只要某一行的內容變了，那一行『以及它之後的所有行』都要重新跑，不管後面那些行本身有沒有變。
+【重點解說】
+SSDS 前後端採用相同模式：後端的 build.gradle 對應前端的 package.json，皆為很少修改的相依清單；後端的 src/main/java 對應前端的 src/app，皆為經常修改的原始碼。順序皆為先複製清單並安裝相依套件，再複製原始碼並編譯。
 
-SSDS 的兩個專案剛好是同一個模式：後端的 build.gradle 對應前端的 package.json，兩者都是「很少改的依賴清單」；後端的 src/main/java 對應前端的 src/app，兩者都是「天天改的原始碼」。順序都是先複製清單、裝依賴，再複製原始碼、編譯。
+【業界實務】
+--no-cache 適用於懷疑快取異常（例如修改設定卻未生效），或 CI 需確保完全乾淨的建置。日常開發不應使用，否則失去快取加速的效果。
 
-至於什麼時候該用 --no-cache？最常見的情境是懷疑快取「髒了」——比方說明明改了設定卻沒生效，或者 CI 上要確保完全乾淨的建構。平常開發不要加，加了就完全沒有快取加速可言。
-
-⚠️ 大家想像一下，如果反過來把原始碼放前面、依賴清單放後面，那我們每改一行程式碼，後面裝套件的那一大串全部都要重跑，build 時間會拖得很長，這就是順序沒排好的代價。
+【易錯點提醒 ⚠️】
+若原始碼放在前面、相依清單放在後面，每修改一行程式碼，後續安裝套件的步驟都必須重新執行，建置時間大幅增加。
 -->
 
 ---
@@ -374,32 +385,32 @@ class: flex flex-col justify-center items-center text-center
 # Multi-stage Build 與 .dockerignore
 
 <!--
-第三部分我們來看兩個能讓映像檔更精簡、更乾淨的技巧：multi-stage build（多階段建構）跟 .dockerignore。
-
-這部分寫完的兩份 Dockerfile，就是我們專案的正式版本。
+【段落轉換】
+第三部分介紹兩項讓 Image 更精簡、更安全的技巧：multi-stage build（多階段建置）與 .dockerignore。本部分完成的兩份 Dockerfile 即為專案的正式版本。
 -->
 
 ---
 
 # 什麼是 Multi-stage Build？
 
-「Multi-stage build：一份 Dockerfile 包含多個『建構階段』，只把需要的成品搬進最終 image，其餘建構工具不會被打包進去。」
+**Multi-stage build**：一份 Dockerfile 包含多個建置階段，最終 Image 只保留所需的成品，建置工具不會被打包進去。
 
-| 語法元素 | 用途 |
+| 語法 | 用途 |
 | --- | --- |
-| `FROM <image> AS <stage-name>` | 開啟一個具名的建構階段 |
-| `COPY --from=<stage-name>` | 從指定階段複製檔案到目前階段 |
-| `--target <stage-name>` | build 時指定只建到某個階段為止 |
-| 多個 `FROM` | 一份 Dockerfile 可以有多個建構階段 |
+| `FROM <image> AS <stage-name>` | 開始一個具名的建置階段 |
+| `COPY --from=<stage-name>` | 從指定階段複製檔案至目前階段 |
+| `--target <stage-name>` | 建置時只執行到指定階段為止 |
+| 多個 `FROM` | 一份 Dockerfile 可包含多個建置階段 |
 
 <!--
-之前我們寫的 Dockerfile 都只有一個 FROM，而且 jar 是在本機 build 好才 COPY 進去。如果改成在容器裡編譯，那編譯器、Gradle、原始碼、依賴快取全部都會疊在同一個 image 裡，image 會很肥大。
+【問題引導】
+若在容器中編譯，編譯器、Gradle、原始碼與相依快取都會留在同一個 Image 中，使 Image 過於龐大。
 
-Multi-stage build 解決的就是這個問題。我們可以開多個階段，前面的階段負責「做菜」——編譯程式碼、安裝開發套件；最後一個階段負責「裝盤」——只把做好的成品複製過來，其他半成品跟廚房裡的鍋碗瓢盆（建構工具）通通不會帶到最終的 image 裡。
+【生活化比喻】
+前面的階段負責「烹調」：編譯程式、安裝開發套件；最後的階段負責「裝盤」：只複製成品，烹調用具（建置工具）不會帶入最終 Image。
 
-用 COPY --from=階段名稱，就能把前面階段的產出物指定複製過來。
-
-⚠️ 大家要記得，中間階段不會出現在最終 image 裡，所以如果要 debug 中間階段的內容，可以用 --target 指定 build 到那個階段就好，方便檢查。
+【重點提醒】
+中間階段不會出現在最終 Image 中。需要檢查中間階段的內容時，可使用 --target 只建置到該階段。
 -->
 
 ---
@@ -410,7 +421,7 @@ zoom: 0.85
 
 ```dockerfile
 # ai-products-selection-backend/Dockerfile
-# ---- 第一階段：用專案的 Gradle Wrapper 編譯 ----
+# ---- 第一階段：以專案的 Gradle Wrapper 編譯 ----
 FROM eclipse-temurin:21-jdk-alpine AS build
 WORKDIR /src
 COPY gradlew settings.gradle build.gradle ./
@@ -425,7 +436,7 @@ RUN chmod +x gradlew && ./gradlew --no-daemon :ssds-api:dependencies > /dev/null
 COPY . .
 RUN ./gradlew --no-daemon :ssds-api:bootJar -x test
 
-# ---- 第二階段：只留 JRE 跟 ssds.jar ----
+# ---- 第二階段：僅保留 JRE 與 ssds.jar ----
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 RUN addgroup -S app && adduser -S app -G app \
@@ -438,19 +449,17 @@ ENTRYPOINT ["java", "-jar", "app.jar"]
 ```
 
 <!--
-這頁是整章的重頭戲，也是大家要放進專案根目錄的 Dockerfile。
+【帶讀關鍵行】
+- 第一階段使用 `eclipse-temurin:21-jdk-alpine` 而非官方 gradle Image：專案使用 Gradle 9.5.1（定義於 gradle-wrapper.properties），官方 gradle Image 的版本不一定相同。以 JDK Image 搭配專案的 ./gradlew，wrapper 會下載專案指定的 Gradle 版本，與本機一致。JDK 21 也符合 build.gradle 中 toolchain 的設定，Gradle 不需另外下載 JDK。
+- `chmod +x gradlew`：從 Windows 傳入的檔案可能沒有執行權限，避免出現 Permission denied。
+- 第二階段使用 jre 而非 jdk，只需執行 jar。`COPY --from=build` 取出第一階段產生的 ssds.jar；檔名固定為 ssds.jar（ssds-api/build.gradle 設定了 `archiveFileName = 'ssds.jar'`），因此不需使用萬用字元，也不會誤複製 plain jar。
 
-先看第一階段。為什麼用 eclipse-temurin:21-jdk-alpine，而不是官方的 gradle image？因為我們專案用的是 Gradle 9.5.1（寫在 gradle-wrapper.properties），gradle 官方 image 的版本不見得剛好一樣。用 JDK image 加上專案自己的 ./gradlew，wrapper 會自動下載「專案指定」的 Gradle 版本，跟大家本機一模一樣。JDK 21 也剛好符合 build.gradle 裡 toolchain 的 21，Gradle 不用另外下載 JDK。
+【易錯點提醒 ⚠️】
+- gradlew 若被 Git 轉為 CRLF 換行，Linux 會出現 `/bin/sh^M: bad interpreter`。專案的 .gitattributes 已設定 `/gradlew text eol=lf` 以避免此問題。
+- 首次建置需下載 Gradle、全部相依套件並編譯六個模組，約需 3 至 6 分鐘，屬正常現象。之後僅修改 Java 時，相依套件層會顯示 CACHED。
 
-`chmod +x gradlew` 是保險：從 Windows 送進來的檔案有時候沒有執行權限，會出現 Permission denied。
-
-⚠️ 另一個 Windows 常見坑：gradlew 如果被 Git 轉成 CRLF 換行，Linux 會報 `/bin/sh^M: bad interpreter`。我們專案的 .gitattributes 已經寫了 `/gradlew text eol=lf`，所以不會有這個問題，這也是那一行存在的原因。
-
-第二階段：jre 不是 jdk，我們只要「跑」jar。COPY --from=build 把第一階段產出的 ssds.jar 撈過來——檔名固定是 ssds.jar，因為 ssds-api/build.gradle 裡寫了 archiveFileName = 'ssds.jar'，所以這裡不用萬用字元，也不怕複製到 plain jar。
-
-大家想一下差別有多大：第一階段的容器裡有 JDK、有 Gradle、有整個 ~/.gradle 的依賴快取、有全部原始碼，加起來超過 1GB。這些東西對「執行」一點用都沒有，全部被丟掉了。最終 image 只有 Alpine + JRE + 一支 100MB 的 jar，`docker images` 顯示約 480MB（壓縮後約 170MB）。
-
-⚠️ 第一次 build 要等比較久（下載 Gradle、所有依賴、編譯六個模組），大概 3 到 6 分鐘，這是正常的。第二次只改 Java 的話，依賴那層會顯示 CACHED。
+【重點解說】
+第一階段包含 JDK、Gradle、~/.gradle 相依快取與全部原始碼，總計超過 1GB，這些對執行皆無用處。最終 Image 僅包含 Alpine、JRE 與約 100MB 的 jar，`docker images` 顯示約 480MB（壓縮後約 170MB）。
 -->
 
 ---
@@ -461,9 +470,9 @@ zoom: 0.95
 
 ```dockerfile
 # ai-products-selection-frontend/Dockerfile
-# ---- 第一階段：用 Node 編譯 Angular ----
+# ---- 第一階段：以 Node 編譯 Angular ----
 FROM node:22-alpine AS build
-# npm run generate:api 用的 openapi-generator 是 Java 程式，build 階段要有 JRE
+# npm run generate:api 使用的 openapi-generator 為 Java 程式，建置階段需要 JRE
 RUN apk add --no-cache openjdk21-jre-headless
 WORKDIR /src
 COPY package.json package-lock.json ./
@@ -471,8 +480,8 @@ RUN npm ci
 COPY . .
 RUN npm run generate:api && npx ng build --configuration production
 
-# ---- 第二階段：只留 nginx 跟靜態檔 ----
-FROM nginx:1.28-alpine
+# ---- 第二階段：僅保留 nginx 與靜態檔 ----
+FROM nginx:1.30-alpine
 COPY nginx/default.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /src/dist/ai-products-selection-frontend/browser /usr/share/nginx/html
 ENV API_URL=http://host.docker.internal:8080
@@ -480,30 +489,28 @@ EXPOSE 80
 ```
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>成果：</b> 建構階段含 <code>node_modules</code> 超過 <b>1GB</b>，最終 image 只有 nginx 加約 2MB 的靜態檔，<b>約 95MB</b>（壓縮後約 26MB）。
+💡 <b>成果：</b>建置階段含 <code>node_modules</code> 超過 <b>1GB</b>；最終 Image 僅包含 nginx 與約 2MB 的靜態檔，<b>約 95MB</b>（壓縮後約 26MB）。
 </div>
 
 <!--
-前端這份比後端更能感受到 multi-stage 的價值，但我們專案有一個特別的坑，要先講。
+【核心說明】
+專案的 src/app/api 由 openapi-generator 依 openapi.json 產生，且被 .gitignore 排除，因此 GitHub 與 Docker 建置上下文中都沒有此資料夾。直接執行 ng build 會出現大量 `Could not resolve "../../api"` 錯誤，必須先執行 `npm run generate:api`。openapi-generator-cli 雖以 npm 安裝，底層為 Java 程式，node:22-alpine 不含 Java，因此須先 `apk add openjdk21-jre-headless`。第一階段最終會被捨棄，安裝 JRE 不影響最終 Image 大小。
 
-大家專案的 src/app/api 資料夾是用 openapi-generator 從 openapi.json 產生的，而且被 .gitignore 排除了——所以 GitHub 上、Docker 建構上下文裡，都「沒有」這個資料夾。如果直接 ng build，會看到一大堆 `Could not resolve "../../api"` 的錯誤。解法是 build 前先跑 `npm run generate:api`。但 openapi-generator-cli 雖然是用 npm 裝的，底層其實是一支 Java 程式，node:22-alpine 裡沒有 Java，所以要先 `apk add openjdk21-jre-headless`。這就是「build 需要什麼工具，就要在 build 階段裝什麼」的真實案例。反正第一階段最後會被丟掉，裝 JRE 不會讓最終 image 變大。
+【帶讀關鍵行】
+- `node:22`：Angular 21 支援 Node 20.19、22.12 或 24 以上。Node 22 目前為維護期 LTS（支援至 2027 年 4 月）；新專案亦可改用 `node:24-alpine`（Active LTS）。
+- `npm ci`：嚴格依照 package-lock.json 安裝，版本完全鎖定，確保建置可重現。專案使用 npm，不是 pnpm。
+- 第二階段改用 nginx，只將 dist 下的產出複製至 nginx 預設網站根目錄。
+- `API_URL`：瀏覽器請求 /api/v1/... 時，由 nginx 轉送至後端。預設值 host.docker.internal 代表執行 Docker 的主機，本機 8080 執行 ssds-api 時即可連線。第六章詳細說明，第九章部署時只需修改此環境變數。
 
-為什麼是 node:22？Angular 21 要求 Node 20.19 以上或 22.12 以上，22 是目前的 LTS。
-
-`npm ci` 不是 `npm install`：ci 會嚴格照著 package-lock.json 安裝，版本完全鎖定，這正是我們要的可重現建構。專案用的是 npm（有 package-lock.json），不是 pnpm。
-
-第二階段換成 nginx，只把 dist 底下的產出物複製到 nginx 的預設網站根目錄。
-
-⚠️ dist 路徑要注意：Angular 17 之後預設輸出到 `dist/<專案名>/browser`，我們專案名稱是 ai-products-selection-frontend（angular.json 裡定義的）。路徑寫錯的話 build 會過，但容器跑起來打開網頁是 nginx 的預設歡迎頁。
-
-nginx 設定檔跟 API_URL 這個環境變數是做什麼的？簡單講：瀏覽器打 /api/v1/... 的時候，nginx 幫忙轉給後端。預設的 host.docker.internal 代表「跑 Docker 的這台電腦」，所以本機用 8080 跑著 ssds-api 就能接上。第六章會完整拆解，第九章部署到雲端時只要改這個環境變數就好。
+【易錯點提醒 ⚠️】
+Angular 17 起預設輸出至 `dist/<專案名>/browser`，本專案名稱為 ai-products-selection-frontend（定義於 angular.json）。路徑錯誤時建置仍會成功，但開啟網頁只會看到 nginx 預設歡迎頁。
 -->
 
 ---
 zoom: 0.97
 ---
 
-# 前端的 nginx 設定檔（先照抄，第六章詳解）
+# 前端 nginx 設定檔（第六章詳解）
 
 ```nginx
 # ai-products-selection-frontend/nginx/default.conf.template
@@ -513,12 +520,12 @@ server {
     root         /usr/share/nginx/html;
     index        index.html;
 
-    # Angular 前端路由：找不到的路徑一律回 index.html
+    # Angular 前端路由：找不到的路徑一律回傳 index.html
     location / {
         try_files $uri $uri/ /index.html;
     }
 
-    # /api 開頭的請求轉給後端；${API_URL} 會在容器啟動時被換成環境變數的值
+    # /api 開頭的請求轉送至後端；${API_URL} 於容器啟動時替換為環境變數值
     location /api/ {
         proxy_pass ${API_URL};
         proxy_ssl_server_name on;
@@ -531,17 +538,18 @@ server {
 ```
 
 <!--
-這份設定檔請先照抄，放在前端專案的 nginx 資料夾下，檔名結尾是 .template。
+【核心說明】
+nginx 官方 Image 在容器啟動時，會以 envsubst 將 /etc/nginx/templates 下 .template 檔中的 ${變數} 替換為環境變數值，再輸出至 conf.d 生效。因此同一個 Image 可在本機、Compose、雲端分別設定不同的 API_URL。$uri、$scheme 等 nginx 內建變數不會被替換，因為 envsubst 只替換實際存在的環境變數。
 
-為什麼是 .template？nginx 官方 image 有一個貼心功能：容器啟動時，會把 /etc/nginx/templates 底下的 .template 檔，用 envsubst 把 ${變數} 換成環境變數的值，再輸出到 conf.d 生效。所以我們可以用同一個 image，在本機、Compose、雲端分別把 API_URL 設成不同值。像 $uri、$scheme 這種 nginx 自己的變數不會被換掉，因為它只替換「真的存在的環境變數」。
+【帶讀關鍵行】
+- `location /`：Angular 路由必要設定。使用者直接開啟 /products/123 等前端路由網址時，伺服器上並無此檔案，需回傳 index.html 由 Angular Router 處理，否則重新整理會出現 404。
+- `location /api/`：反向代理。專案 environment.prod.ts 的 apiBaseUrl 為相對路徑 `/api/v1`，瀏覽器將 API 請求送回網頁所在網域，由 nginx 轉送至後端。前後端對瀏覽器而言為同一網域，不會發生 CORS 問題；後端 SecurityConfig 的 CORS 白名單目前只有 localhost:4200，因此此設計很重要。
+- `client_max_body_size 50m`：專案的 Excel 匯入上限為 50MB，nginx 預設只接受 1MB。
+- `proxy_read_timeout 120s`：AI 分析 API 回應時間可能較長。
+- `proxy_ssl_server_name on`：第九章雲端後端網址為 https，缺少此設定 TLS 交握會失敗。
 
-`location /` 那段是 Angular 路由的必要設定：使用者直接打開 /products/123 這種前端路由網址，伺服器上並沒有這個檔案，要回 index.html 讓 Angular Router 接手，否則重新整理就 404。
-
-`location /api/` 那段是反向代理：我們專案 production 環境的 environment.prod.ts 裡，apiBaseUrl 寫的是相對路徑 `/api/v1`，所以瀏覽器會把 API 請求送回「網頁自己的網域」，由 nginx 轉給後端。好處是瀏覽器眼中前後端同一個網域，完全不會有 CORS 問題——這點非常重要，因為後端 SecurityConfig 裡的 CORS 白名單目前只寫了 localhost:4200。
-
-client_max_body_size 50m 是因為專案的 Excel 匯入功能上限 50MB，nginx 預設只收 1MB；proxy_read_timeout 拉長是因為 AI 分析的 API 可能比較慢。
-
-⚠️ proxy_ssl_server_name on 這行本機用不到，第九章雲端的後端網址是 https，少了這行 TLS 握手會失敗。
+【補充】
+nginx 1.30 起，proxy 預設使用 HTTP/1.1 並啟用 keep-alive，不需再手動設定 `proxy_http_version 1.1`。
 -->
 
 ---
@@ -550,14 +558,13 @@ zoom: 0.94
 
 # 什麼是 .dockerignore？
 
-「.dockerignore 用來排除不需要送進建構上下文的檔案，讓上下文更乾淨、build 更快。」
+**.dockerignore** 用於排除不需送入建置上下文的檔案，縮小上下文並避免機密外洩。
 
 | 項目 | 說明 |
 | --- | --- |
-| 用途 | 排除不需要送進建構上下文的檔案或目錄 |
-| 語法 | 跟 `.gitignore` 的排除模式類似 |
-| 放置位置 | 與 Dockerfile 同一目錄（專案根目錄） |
-| 效益 | 縮小建構上下文、**避免 `.env` 被打包**、加快 build 速度 |
+| 語法 | 與 `.gitignore` 的排除規則類似 |
+| 位置 | 建置上下文的根目錄（通常與 Dockerfile 同目錄） |
+| 效益 | 縮小建置上下文、**避免 `.env` 被打包**、加快建置速度 |
 
 ```plaintext
 # ai-products-selection-backend/.dockerignore    # ai-products-selection-frontend/.dockerignore
@@ -571,25 +578,25 @@ uploads                                          src/app/api
 ```
 
 <!--
-.dockerignore 這個檔案的用法，跟大家熟悉的 .gitignore 幾乎一模一樣，寫法也是每行一個排除規則。
+【核心說明】
+docker build 會將目前目錄整體作為建置上下文送交建置程序。SSDS 前端的 node_modules 超過 1GB，後端的 .gradle 快取與各模組 build 目錄也有數百 MB；未排除時傳送就需數十秒，且第一階段仍會以 npm ci / gradlew 重新產生，毫無用處。前端另排除 src/app/api，確保每次皆由 openapi.json 重新產生。
 
-它解決的問題是：docker build 執行時，會把當前目錄整個打包成「建構上下文」送給建構程序。SSDS 兩個專案都有很痛的例子——前端的 node_modules 超過 1GB，後端的 .gradle 快取跟各模組的 build 目錄也是幾百 MB，這些全部都會被送進去，光是「送」就要等好幾十秒，而且送進去之後第一階段還會用 npm ci / gradlew 重做一次，完全是白費工。前端還要排除 src/app/api，確保每次都用 openapi.json 重新產生，不會混到舊檔。
+【重點提醒】
+後端根目錄的 .env 包含 Supabase 密碼、Mistral API key、Apify token。後端 Dockerfile 第一階段使用 `COPY . .`，未排除時 .env 會進入建置階段；若第二階段也寫了 `COPY . .`，.env 就會進入最終 Image。Image 推送至 Docker Hub 後，任何人皆可取得其中內容。
 
-資安面更要小心。後端專案根目錄的 .env 放著 Supabase 密碼、Mistral API key、Apify token。後端 Dockerfile 第一階段寫的是 `COPY . .`，如果沒排除，.env 就會被複製進建構階段；更糟的是，如果有人在第二階段也寫了 COPY . .，.env 就進了最終 image。image 會被 push 到 Docker Hub，任何人 pull 下來都能翻出來看。
-
-⚠️ 注意 `**/build`：兩顆星代表任何深度的 build 資料夾，我們六個子模組各有一個，只寫 build 只會排除根目錄那個。
-
-⚠️ 易錯點：.dockerignore 一定要跟 Dockerfile 放在建構上下文的根目錄，放錯位置等於沒寫。
+【易錯點提醒 ⚠️】
+- `**/build`：兩個星號代表任意深度的 build 資料夾。六個子模組各有一個 build 目錄，只寫 build 只會排除根目錄的那一個。
+- .dockerignore 必須位於建置上下文的根目錄，放錯位置即無效。
 -->
 
 ---
 layout: default
 ---
 
-# 練習 1：修好 ssds-api 的 Dockerfile 快取
+# 練習 1：改善 ssds-api 的 Dockerfile 快取
 ### 任務說明
 
-組員寫的這份 Dockerfile 可以動，但每次改一行 Java 就要重抓 Gradle 和所有依賴，build 一次要五分鐘：
+組員撰寫的 Dockerfile 可以運作，但每修改一行 Java 就會重新下載 Gradle 與所有相依套件，每次建置約需五分鐘：
 
 ```dockerfile
 FROM eclipse-temurin:21-jdk-alpine
@@ -600,38 +607,108 @@ EXPOSE 8080
 CMD ["java", "-jar", "ssds-api/build/libs/ssds.jar"]
 ```
 
-任務：
+1. 改為 multi-stage，最終 Image 使用 `eclipse-temurin:21-jre-alpine`，並以非 root 使用者執行
+2. 調整順序，使「只修改 Java、未修改任何 build.gradle」時，相依套件下載層能命中快取
+3. 新增 `.dockerignore`，確認 `.env` 不會進入建置上下文
+4. 實測：執行 `docker build -t ssds-api:1.0.0 .` 兩次，第二次前修改一行 Controller，觀察哪些步驟顯示 `CACHED`
 
-1. 改成 multi-stage，最終 image 用 `eclipse-temurin:21-jre-alpine`，並以非 root 使用者執行
-2. 調整順序，讓「只改 Java、沒改任何 build.gradle」時，依賴下載那層吃到 layer cache
-3. 補上 `.dockerignore`，確認 `.env` 不會進建構上下文
-4. 實測：`docker build -t ssds-api:1.0.0 .` 兩次，第二次前隨便改一行 Controller，觀察哪幾步顯示 `CACHED`
+<!--
+【任務鋪陳】
+本題練習快取排序與 multi-stage build，實際比較調整順序前後的建置時間差異。
+
+【出題動機】
+多模組專案最容易遺漏子模組的 build.gradle，本題讓學生實際遇到此問題。請務必實際建置兩次比較。
+-->
 
 ---
 layout: default
+zoom: 0.85
 ---
 
-# 練習 1：解題提示
-### 提示說明
+# 練習 1：參考答案
 
-1. 先問自己：`build.gradle` 跟 `src/` 底下的 Java 檔，哪個改動頻率低？
-2. 多模組專案，Gradle 解析依賴需要：`gradlew`、`gradle/` 目錄（含 `libs.versions.toml`）、根目錄的 `settings.gradle` + `build.gradle`、**六個子模組各自的 `build.gradle`**
-3. 接著 `RUN ./gradlew --no-daemon :ssds-api:dependencies` 把依賴鎖成獨立一層
-4. 最後才 `COPY . .` 並執行 `bootJar`；第二階段 `COPY --from=build /src/ssds-api/build/libs/ssds.jar app.jar`
-5. 驗證 `.env` 沒進去：`docker run --rm --entrypoint ls ssds-api:1.0.0 -la /app`
+<div class="grid grid-cols-2 gap-4">
+<div>
 
-<div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-⚠️ <b>常見錯誤：</b> 漏了某個子模組的 <code>build.gradle</code>，依賴那層會失敗或抓不完整；漏了 <code>gradle/</code> 目錄則會出現 <code>Could not find or load main class org.gradle.wrapper.GradleWrapperMain</code>。
+```dockerfile
+# Dockerfile
+FROM eclipse-temurin:21-jdk-alpine AS build
+WORKDIR /src
+COPY gradlew settings.gradle build.gradle ./
+COPY gradle ./gradle
+COPY ssds-api/build.gradle ssds-api/
+COPY ssds-core/build.gradle ssds-core/
+COPY ssds-ai/build.gradle ssds-ai/
+COPY ssds-ingest/build.gradle ssds-ingest/
+COPY ssds-calibration/build.gradle ssds-calibration/
+COPY ssds-infra/build.gradle ssds-infra/
+RUN chmod +x gradlew \
+ && ./gradlew --no-daemon :ssds-api:dependencies > /dev/null
+COPY . .
+RUN ./gradlew --no-daemon :ssds-api:bootJar -x test
+
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+RUN addgroup -S app && adduser -S app -G app \
+ && mkdir -p /app/uploads && chown -R app:app /app
+COPY --from=build /src/ssds-api/build/libs/ssds.jar app.jar
+USER app
+ENV SPRING_PROFILES_ACTIVE=prod
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "app.jar"]
+```
+
+</div>
+<div>
+
+```plaintext
+# .dockerignore
+.git
+.gradle
+**/build
+.idea
+uploads
+.env
+*.md
+```
+
+```bash
+# 第一次建置（約 3–6 分鐘）
+docker build -t ssds-api:1.0.0 .
+
+# 修改一行 Controller 後再次建置
+docker build -t ssds-api:1.0.0 .
+# => CACHED [build] COPY gradlew settings.gradle ...
+# => CACHED [build] RUN ... ./gradlew ... dependencies
+# =>        [build] COPY . .
+# =>        [build] RUN ./gradlew ... bootJar
+
+# 驗證 .env 未進入 Image
+docker run --rm --entrypoint ls ssds-api:1.0.0 -la /app
+```
+
+</div>
 </div>
 
+<!--
+【帶讀解法】
+- 相依套件層所需檔案：gradlew、gradle/ 目錄（含 libs.versions.toml）、根目錄的 settings.gradle 與 build.gradle，以及六個子模組各自的 build.gradle。
+- 第二次建置時，相依套件下載以前的步驟皆顯示 CACHED，只有 `COPY . .` 與 bootJar 重新執行，建置時間由數分鐘縮短為數十秒。
+- 最後一行輸出應只有 app.jar 與 uploads 目錄，沒有 .env。
+
+【易錯點提醒 ⚠️】
+- 遺漏某個子模組的 build.gradle，相依套件層會失敗或下載不完整。
+- 遺漏 gradle/ 目錄會出現 `Could not find or load main class org.gradle.wrapper.GradleWrapperMain`。
+-->
+
 ---
 layout: default
 ---
 
-# 練習 2：把 ssds-web 包成 Image
+# 練習 2：將 ssds-web 包裝為 Image
 ### 任務說明
 
-在 `ai-products-selection-frontend/` 下，組員寫了第一版 Dockerfile，但一 build 就失敗：
+`ai-products-selection-frontend/` 下的第一版 Dockerfile 建置失敗：
 
 ```dockerfile
 FROM node:22-alpine
@@ -646,45 +723,96 @@ X [ERROR] Could not resolve "../../api"
     src/app/features/trends/trends.component.ts:2:55
 ```
 
-任務：
+1. 找出錯誤原因並修正（提示：檢查 `.gitignore` 與 `package.json` 的 scripts）
+2. 改寫為 multi-stage：第二階段使用 `nginx:1.30-alpine`，並加入 `nginx/default.conf.template`
+3. 將 `npm install` 改為 `npm ci`，並調整順序使相依套件安裝能命中快取
+4. 新增 `.dockerignore`，並驗證：以 `docker images` 查看大小、進入容器確認沒有 `.ts` 原始碼
 
-1. 找出錯誤原因並修好（提示：看一下 `.gitignore` 和 `package.json` 的 scripts）
-2. 改寫成 multi-stage：第二階段用 `nginx:1.28-alpine`，加上 `nginx/default.conf.template`
-3. 把 `npm install` 換成 `npm ci`，並調整順序讓依賴安裝能吃快取
-4. 新增 `.dockerignore`，並驗證：`docker images` 看大小、進容器確認沒有 `.ts` 原始碼
+<!--
+【任務鋪陳】
+本題為本章的驗收題，第一步為真實的除錯情境：建置失敗、錯誤訊息看似程式碼問題，實際上是建置環境缺少一個步驟。
+
+【出題動機】
+本機開發時 src/app/api 早已產生，因此不會察覺；換到乾淨的環境（Docker、CI、雲端平台）才會出現問題。容器化的價值之一，就是迫使所有隱含的建置步驟明確寫出。
+-->
 
 ---
 layout: default
+zoom: 0.88
 ---
 
-# 練習 2：解題提示
-### 提示說明
+# 練習 2：參考答案
 
-1. `src/app/api` 被 `.gitignore` 排除，是 `npm run generate:api` 產生的；而 openapi-generator 需要 **Java** → build 階段 `apk add --no-cache openjdk21-jre-headless`
-2. 依賴快取：先 `COPY package.json package-lock.json ./` → `RUN npm ci` → 再 `COPY . .`
-3. 輸出路徑看 `angular.json`：`dist/ai-products-selection-frontend/browser`
+<div class="grid grid-cols-2 gap-4">
+<div>
+
+**1. 原因：**`src/app/api` 被 `.gitignore` 排除，須以 `npm run generate:api` 產生；openapi-generator 需要 Java。
+
+```dockerfile
+# Dockerfile
+FROM node:22-alpine AS build
+RUN apk add --no-cache openjdk21-jre-headless
+WORKDIR /src
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+RUN npm run generate:api \
+ && npx ng build --configuration production
+
+FROM nginx:1.30-alpine
+COPY nginx/default.conf.template \
+     /etc/nginx/templates/default.conf.template
+COPY --from=build \
+     /src/dist/ai-products-selection-frontend/browser \
+     /usr/share/nginx/html
+ENV API_URL=http://host.docker.internal:8080
+EXPOSE 80
+```
+
+</div>
+<div>
+
+```plaintext
+# .dockerignore
+.git
+node_modules
+dist
+.angular
+src/app/api
+.env*
+*.md
+```
 
 ```bash
 docker build -t ssds-web:1.0.0 .
+docker images ssds-web                  # 約 95MB
 docker run -d --name ssds-web -p 8000:80 ssds-web:1.0.0
-docker exec ssds-web ls /usr/share/nginx/html          # 只有 index.html 與雜湊檔名的 js/css
-docker exec ssds-web cat /etc/nginx/conf.d/default.conf  # ${API_URL} 已被換成實際網址
+
+# 只有 index.html 與雜湊檔名的 js/css，沒有 .ts
+docker exec ssds-web ls /usr/share/nginx/html
+
+# ${API_URL} 已替換為實際網址
+docker exec ssds-web cat /etc/nginx/conf.d/default.conf
 ```
 
-<div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>端到端驗證：</b> 本機 8080 跑著 <code>ssds-api</code> 容器時，打開 <code>http://localhost:8000</code> 登入，畫面能載入資料，就代表 web → nginx 反向代理 → api → Supabase 整條通了。
+</div>
+</div>
+
+<div class="mt-2 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
+💡 <b>端到端驗證：</b>本機 8080 執行 <code>ssds-api</code> 容器時，開啟 <code>http://localhost:8000</code> 登入並載入資料，即表示 web → nginx 反向代理 → api → Supabase 全線連通。
 </div>
 
 <!--
-這兩題練習的講稿放在這裡一起講。
+【帶讀解法】
+- 錯誤原因：src/app/api 為產生的程式碼且未納入版本控制，建置環境中不存在。
+- 相依套件快取：先 COPY package.json 與 package-lock.json → npm ci → 再 COPY 原始碼。
+- 輸出路徑依 angular.json：`dist/ai-products-selection-frontend/browser`。
 
-練習一是快取排序加 multi-stage，重點是讓大家自己動手體會「順序改一下，build 時間從五分鐘變幾十秒」。請務必真的 build 兩次比較，光看投影片沒有感覺。多模組專案最容易漏的就是子模組的 build.gradle，這題故意讓大家踩一次。
+【易錯點提醒 ⚠️】
+第 4 步的驗證必須執行。未 COPY .env 不代表安全：只要使用 `COPY . .` 且 .dockerignore 未排除，機密就會進入建置上下文。
 
-練習二是這章的驗收題，而且第一步是一個真實的除錯情境：build 失敗、錯誤訊息看起來像是程式碼有問題，其實是「建構環境少了一個步驟」。大家平常在本機開發，src/app/api 早就產生過了所以沒感覺；換到一個乾淨的環境（Docker、CI、雲端平台）才會現形。這就是容器化最大的價值之一：逼我們把「隱含的建構步驟」全部寫清楚。
-
-⚠️ 第 4 步的驗證一定要做。很多人以為「我沒有 COPY .env 就沒事」，但只要寫了 COPY . . 而 .dockerignore 沒排除，機密就進建構上下文了。
-
-做完之後，大家手上應該有兩個 image：ssds-api:1.0.0 跟 ssds-web:1.0.0。請把兩份 Dockerfile、.dockerignore、nginx 設定檔都 commit 進各自的 repo，第九章雲端平台會直接從 GitHub 讀這些檔案來 build。
+【重點提醒】
+完成後應有兩個 Image：ssds-api:1.0.0 與 ssds-web:1.0.0。請將兩份 Dockerfile、.dockerignore、nginx 設定檔 commit 至各自的 repo，第九章雲端平台會直接從 GitHub 讀取這些檔案進行建置。
 -->
 
 ---
@@ -701,32 +829,33 @@ layout: default
 
 <table class="summary-table">
 <thead>
-<tr><th>主題</th><th>重點回顧</th></tr>
+<tr><th>主題</th><th>重點</th></tr>
 </thead>
 <tbody>
-<tr><td>常用指令</td><td><code>FROM</code>、<code>COPY</code>、<code>RUN</code>、<code>CMD</code>、<code>ENTRYPOINT</code>、<code>EXPOSE</code>、<code>ENV</code>，各司其職</td></tr>
-<tr><td>健康檢查</td><td>加 Actuator，路徑是 <code>/api/v1/actuator/health</code>（受 context-path 影響）</td></tr>
-<tr><td>Layer Cache</td><td>先 COPY 所有 build.gradle / package-lock.json 裝依賴，再 COPY 原始碼</td></tr>
+<tr><td>常用指令</td><td><code>FROM</code>、<code>COPY</code>、<code>RUN</code>、<code>CMD</code>、<code>ENTRYPOINT</code>、<code>EXPOSE</code>、<code>ENV</code></td></tr>
+<tr><td>健康檢查</td><td>加入 Actuator，路徑為 <code>/api/v1/actuator/health</code>（受 context-path 影響）</td></tr>
+<tr><td>Layer Cache</td><td>先 COPY 所有 build.gradle / package-lock.json 並安裝相依套件，再 COPY 原始碼</td></tr>
 <tr><td>ssds-api</td><td>JDK + gradlew 編譯 → JRE + <code>ssds.jar</code>，非 root 執行，約 480MB</td></tr>
-<tr><td>ssds-web</td><td>Node（+ JRE 跑 generate:api）編譯 → nginx + 靜態檔，約 95MB</td></tr>
-<tr><td>.dockerignore</td><td>排除 <code>node_modules</code>、<code>**/build</code>，<b>一定要排除 <code>.env</code></b></td></tr>
+<tr><td>ssds-web</td><td>Node（+ JRE 執行 generate:api）編譯 → nginx + 靜態檔，約 95MB</td></tr>
+<tr><td>.dockerignore</td><td>排除 <code>node_modules</code>、<code>**/build</code>，<b>必須排除 <code>.env</code></b></td></tr>
 </tbody>
 </table>
 
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-🚀 <b>下一章：</b> 我們將進入 Docker Compose，用一份 YAML 一次 build、啟動 ssds-api 與 ssds-web。
+🚀 <b>下一章：</b>Docker Compose — 以一份 YAML 同時建置並啟動 ssds-api 與 ssds-web。
 </div>
 
 <!--
-今天這一章的內容比較扎實，我們快速複習一下。
+【回顧】
+本章介紹 Dockerfile 的核心指令與 CMD / ENTRYPOINT 的差異，說明 docker build 的 layer 與快取機制（多模組專案須先複製所有子模組的 build.gradle），最後以 multi-stage build 完成前後端正式 Dockerfile，並以 .dockerignore 確保 .env 不外洩。
 
-我們學了 Dockerfile 最核心的幾個指令，也搞懂了 CMD 跟 ENTRYPOINT 的差異。接著理解了 docker build 背後的 layer 跟快取機制，知道多模組專案要把每個子模組的 build.gradle 都先複製進去。最後用 multi-stage build 寫出了前後端的正式 Dockerfile，並且用 .dockerignore 確保 .env 不會外洩。
-
-⚠️ 這章做完的檔案非常重要，請確認都 commit 了：
-- 後端：Dockerfile、.dockerignore、ssds-api/build.gradle 的 actuator
+【重點提醒】
+請確認以下檔案皆已 commit：
+- 後端：Dockerfile、.dockerignore、ssds-api/build.gradle 的 actuator 相依套件
 - 前端：Dockerfile、.dockerignore、nginx/default.conf.template
 
-下一章我們會進入 Docker Compose，把兩個 container 組合起來一起管理，我們下堂課見。
+【課程預覽】
+下一章以 Docker Compose 統一管理兩個容器。
 -->
 
 ---
@@ -738,9 +867,9 @@ layout: end
 有任何問題嗎？
 
 <!--
-現在開放 Q&A 時間。
+【互動引導】
+開放提問：Dockerfile 常用指令、Layer Cache 機制或 Multi-stage Build，有任何疑問皆可提出。
 
-大家對 Dockerfile 常用指令、Layer Cache 機制，或是 Multi-stage Build，有沒有什麼疑問？都歡迎提出來討論。
-
-如果自己專案 build 失敗，先看錯誤是在哪一個階段、哪一行 RUN，再對照今天講的幾個坑：gradlew 權限、少了子模組的 build.gradle、少了 generate:api、dist 路徑寫錯。
+【操作提示】
+專案建置失敗時，先確認錯誤發生在哪一個階段、哪一行 RUN，再對照本章的常見問題：gradlew 權限、缺少子模組的 build.gradle、缺少 generate:api、dist 路徑錯誤。
 -->
