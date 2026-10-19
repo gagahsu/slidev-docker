@@ -42,13 +42,11 @@ style: |
 </div>
 
 <!--
-大家好，歡迎來到最後一章「部署實戰」。
+歡迎來到最後一章，部署實戰。
 
-前面七章我們已經學會怎麼寫 Dockerfile、怎麼用 Compose 組合多個服務、怎麼設定網路和 Volume。這一章要把這些技能兜在一起，聊聊「怎麼把東西送到正式環境（production）」這件事。
+前面七章，我們寫了 Dockerfile，用 Compose 組合三個服務，也設定好網路和 Volume。但在自己電腦上能跑，跟能安全地部署到伺服器給別人用，中間還隔著三件事：密碼和設定怎麼管理、每個版本的 Image 怎麼標記、Image 要怎麼送到大家都拿得到的地方。
 
-為什麼要學這個？因為在自己電腦上 `docker compose up` 能跑，跟能安全地部署到伺服器上讓別人用，中間還隔著三件事：怎麼管理設定與密碼、怎麼幫每個版本的 image 做好標記、怎麼把 image 送到大家都能取用的地方。這三件事就是今天的主軸。
-
-學完這章，大家應該能夠自己寫出一份不會外洩密碼的 .env、幫專案訂出一套 tag 命名規則，並且知道 CI/CD 大概在做什麼、怎麼把 image push 上 registry。
+學完這一章，我們會有一套密碼不進版控、版本清楚、出問題三十秒就能回到上一版的部署流程。
 -->
 
 ---
@@ -64,15 +62,7 @@ layout: default
 - **總結：課程回顧**
 
 <!--
-今天分成三大部分。
-
-第一部分講環境變數跟 .env 檔，這是部署前最容易踩雷的地方，很多資安事件都是密碼不小心被 commit 上去造成的。
-
-第二部分講 image 的版本控制，也就是 tag 策略，讓我們知道現在跑的到底是哪一版程式碼。
-
-第三部分講 CI/CD 的基本概念，還有怎麼把做好的 image 推送到 Registry（倉庫）上，讓其他機器可以拉下來用。
-
-最後會有兩題練習，還有整個八章課程的總回顧。大家準備好了嗎，我們開始吧。
+這一章分成三部分。第一部分是環境變數和 .env 檔，這是部署前最容易出問題的地方。第二部分是 Image 的版本標記策略，讓我們知道現在跑的是哪一版程式。第三部分是 CI/CD 的基本概念，以及怎麼把 Image 推到 Registry，最後再幫正式環境加上健康檢查和資源限制。之後有兩題練習，以及整個八章課程的回顧。
 -->
 
 ---
@@ -83,9 +73,7 @@ class: flex flex-col justify-center items-center text-center
 # 環境變數管理與 .env
 
 <!--
-先進入第一部分。大家有沒有遇過這種情況：程式碼裡直接寫死了資料庫密碼、API 金鑰，結果不小心把整包程式 commit 上 GitHub，密碼就這樣公開給全世界看？
-
-這一部分我們就是要解決這個問題，學會用 .env 檔案把「設定」跟「程式碼」分開管理。
+先進入第一部分。很多資安事件，都是因為密碼直接寫在程式碼裡，又不小心 commit 上 GitHub。這一部分我們要把設定和程式碼分開管理。
 -->
 
 ---
@@ -109,13 +97,15 @@ TASKBOARD_VERSION=1.0.0
 </div>
 
 <!--
-大家先记住這個類比：.env 就是我們的隨身小包，重要但敏感的東西放這裡，跟主程式（大行李）分開走。
+「.env 檔是一個純文字檔，用來存放環境變數」，把資料庫密碼這類會因環境而不同的設定，跟程式碼分開管理。
 
-為什麼要分開？因為程式碼通常會進版本控制（Git），但密碼、金鑰這種東西一旦進了 Git 歷史紀錄，就很難徹底清除，就算之後刪掉檔案，舊的 commit 紀錄裡還是找得到。
+我們可以把它想成出門時的隨身小包。證件、鑰匙這些重要又敏感的東西放在小包裡，跟大行李分開帶。
 
-⚠️ 這裡先預告一個等一下會再三強調的重點：.env 檔絕對不要 commit 進版控，等一下的注意事項會細講怎麼避免。
+為什麼要分開？因為程式碼會進 Git。密碼一旦進了 Git 的歷史紀錄，就算之後刪掉檔案，舊的 commit 裡還是找得到。
 
-範例裡放的就是 TaskBoard 前面幾章一直寫死在 compose.yaml 裡的那些值：資料庫密碼、Spring 的 profile、還有 image 版本號。前面幾章為了教學方便直接寫死，這一章我們要把它們全部搬出來。
+範例裡放的，就是前面幾章一直寫死在 compose.yaml 裡的值，資料庫密碼、Spring 的 profile，還有 Image 的版本號。之前為了教學方便直接寫死，這一章我們要把它們全部搬出來。
+
+格式很簡單，一行一個 KEY 等於 VALUE。
 -->
 
 ---
@@ -131,15 +121,13 @@ TASKBOARD_VERSION=1.0.0
 | 命令列臨時覆蓋 | `docker compose run -e DEBUG=1 web` | 執行當下才決定的值 |
 
 <!--
-這張表整理了在 compose.yaml 裡設定環境變數的幾種方式。
+這張表整理了在 compose.yaml 裡設定環境變數的幾種方式，我們挑重點看。
 
-最直接的是用 environment 屬性，可以用映射（key: value）或列表（- key=value）兩種語法，效果一樣，看團隊習慣選一種。
+前兩列的 environment，是直接把值寫在 compose.yaml 裡，有兩種寫法，效果一樣。
 
-如果變數很多，建議用 env_file 指到外部檔案，這樣 compose.yaml 本身乾淨清爽，也方便針對不同環境（開發/正式）切換不同的 env 檔。
+第三列的 env_file，是指定一個外部檔案，一次載入整批變數。變數很多的時候，這樣 compose.yaml 會比較乾淨。
 
-插值語法 ${DEBUG} 則是讓 compose.yaml 去讀取 .env 檔或當下 shell 環境的值，這個很常用在「同一份 compose.yaml，不同環境跑不同設定」的情境。
-
-⚠️ 易錯點：env_file 是 Docker Compose CLI 才有的插值功能，如果是單純用 `docker run --env-file`，語法規則不完全一樣，大家換工具時要留意。
+最重要的是第四列，插值引用。用錢字號加大括號，Compose 會從 .env 或目前的 shell 讀取實際的值代入。同一份 compose.yaml，就能在不同環境跑不同的設定，這一章接下來都會用這個寫法。
 -->
 
 ---
@@ -161,6 +149,25 @@ services:
       SPRING_DATASOURCE_USERNAME: appuser
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}
+```
+
+<!--
+這一頁把 TaskBoard 的 compose.yaml 改成完全不含密碼的版本。因為比較長，拆成兩頁，這頁先看 web 和 api。
+
+對照第五章那份，差別就是所有敏感的值，都換成了插值。
+
+先看 image 那行，版本號也用了 TASKBOARD_VERSION。要升版或回到舊版，只要改 .env 裡的一行，再執行一次 `docker compose up -d`，compose.yaml 完全不用動。
+
+api 的資料庫密碼，則是從 MYSQL_PASSWORD 這個變數讀進來。
+-->
+
+---
+
+# .env 用法 — 範例（續）
+
+```yaml
+services:
+  # ...（接上頁 web、api）
   db:
     image: mysql:8.4
     environment:
@@ -175,15 +182,13 @@ volumes:
 ```
 
 <!--
-這張是範例頁，帶大家看一次完整做法。對照第五章那份 compose.yaml，差別就是所有敏感值都換成了 ${} 插值。
+接著看 db。root 密碼和應用帳號的密碼，也都換成了插值。
 
-Compose 會自動去讀同一層目錄的 .env，把 ${MYSQL_PASSWORD} 這種佔位符換成實際的值。所以這份 compose.yaml 現在完全不含密碼，可以放心 commit 進 Git、可以貼在文件裡、可以給任何人看。
+Compose 會自動讀取同一層目錄的 .env，把這些佔位符換成實際的值。所以這份 compose.yaml 完全不含密碼，可以放心 commit 進 Git，給任何人看。
 
-⚠️ 請大家注意一個很重要的區別，這是最多人搞混的：.env 裡的變數是給「Compose 檔案本身」做文字替換用的，不會自動變成容器裡的環境變數。api 服務之所以拿得到密碼，是因為我們在 environment 區塊明確寫了 SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}。如果只在 .env 裡寫了某個變數，卻沒在 environment 裡引用它，容器裡是看不到那個變數的。
+這裡有一個最多人搞混的地方。.env 裡的變數，是用來替換 Compose 檔案本身的文字，不會自動變成容器裡的環境變數。api 拿得到密碼，是因為我們在 environment 裡明確寫了 SPRING_DATASOURCE_PASSWORD 引用它。只寫在 .env、沒有在 environment 引用的變數，容器裡是看不到的。
 
-另外看 image 那行：版本號也用了 ${TASKBOARD_VERSION}。這樣要升版或回滾，只要改 .env 裡的一行版本號，再 docker compose up -d 就好，compose.yaml 完全不用動。這是實務上很常見的做法。
-
-預期結果：docker compose up 之後，用 docker compose exec api env | grep SPRING 可以看到密碼確實被注入容器了，但 compose.yaml 裡沒有任何一個明文密碼。
+啟動之後，用 `docker compose exec api env` 搭配 grep，就能確認密碼確實被注入了容器。
 -->
 
 ---
@@ -216,15 +221,15 @@ TASKBOARD_VERSION=1.0.0
 </div>
 
 <!--
-這頁是這個部分最重要的提醒，一定要講清楚。
+這一頁是第一部分最重要的提醒。
 
-生活比喻延續前面：隨身小包很重要，但如果我們把小包的內容物拍照發到公開社群，那跟沒分開放也沒兩樣。.env 就算跟程式碼分開放在同一個資料夾，只要它進了 Git，效果就跟寫死在程式碼裡一樣糟。
+延續隨身小包的比喻，如果我們把小包裡的東西拍照發到公開社群，那跟沒分開放也沒兩樣。.env 也是一樣，只要它進了 Git，效果就跟寫死在程式碼裡一樣糟。
 
-⚠️ 大家一定要在專案一開始就把 .env 加進 .gitignore，養成習慣，不要等到不小心 commit 了才補救。
+所以專案一開始，就要把 .env 加進 .gitignore，養成習慣，不要等到不小心 commit 了才補救。
 
-另外官方也建議，真正機密的東西（像是正式環境的資料庫密碼）不要只靠環境變數，更進階的做法是用 Docker Secrets 這類專門的機密管理機制，環境變數比較適合非機密、或是開發測試用的設定。
+那新同事怎麼知道要設定哪些變數？團隊常見的做法是放一份 `.env.example`，只寫欄位名稱，不寫真正的值，這份可以進版控。
 
-實務上團隊常見做法是放一份 .env.example 當範本，這個檔案可以進版控，因為裡面沒有真的密碼，只有告訴大家「這裡需要填 DB_PASSWORD」這種欄位提示。
+另外官方也建議，正式環境真正機密的資料，不要只靠環境變數，可以進一步改用 Docker Secrets 這類專門的機密管理機制。
 -->
 
 ---
@@ -235,11 +240,7 @@ class: flex flex-col justify-center items-center text-center
 # Image 版本控制與 Tag 策略
 
 <!--
-接下來進入第二部分，聊聊 image 的版本控制。
-
-大家想像一下，工廠出貨的時候，每一批貨都會貼上批號，這樣如果某一批貨出了問題，才能精準地追查是哪一批、什麼時候生產的，也才能只回收那一批，而不是把所有貨都收回來。
-
-Docker image 的 tag 也是同樣的道理，這一部分我們就來聊聊怎麼幫 image 貼「批號」。
+接下來進入第二部分，Image 的版本控制。就像工廠出貨，每一批貨都要貼上批號，出了問題才能精準追查和回收。
 -->
 
 ---
@@ -259,11 +260,13 @@ docker image tag taskboard-api:latest taskboard-api:1.2.0
 </div>
 
 <!--
-這張是概念定義頁。核心就是那句「tag 是可變的」——這句話很重要，代表同一個名字（例如 nginx:3.21）今天指到的內容，跟三個月後可能不一樣，因為原作者可能重新推送覆蓋了同一個 tag。
+如果只用預設的 latest，我們無法知道正式環境跑的是哪個版本，出問題時也不知道要回到哪一版。
 
-批號的類比再強調一次：出貨如果沒貼批號，出了問題根本沒辦法追查、也沒辦法只回收有問題的那一批。Image 也一樣，沒有清楚的版本標記，出問題想回滾都不知道要滾到哪一版。
+「Tag 是幫 image 每一個版本貼上可辨識名字的機制」，就像貨物的批號，讓我們知道現在正式環境跑的，到底是哪一批貨。
 
-⚠️ 易錯點：很多初學者以為 tag 是「固定不變」的版本號，其實不是，除非搭配 digest（下一頁會提到），否則 tag 本質上只是一個可以被覆蓋的指標。
+這裡要特別注意官方的提醒，tag 是可變的。同一個 tag，隨時可能被重新推送、覆蓋成不同內容的 Image。今天拉到的 `nginx:1.27`，跟三個月後拉到的，內容可能不一樣。
+
+所以 tag 本質上只是一個可以被移動的指標，不是固定不變的版本。要真正鎖死內容，要搭配等一下會提到的 digest。
 -->
 
 ---
@@ -279,13 +282,15 @@ docker image tag taskboard-api:latest taskboard-api:1.2.0
 | CI/CD pipeline 追蹤 | 難以稽核 | 每次 build 都有明確紀錄 |
 
 <!--
-這張表整理了如果一直依賴 latest 這個預設 tag，在正式環境會遇到的具體風險。
+這張表整理了一直依賴 latest，在正式環境會遇到的風險。
 
-大家看第一列，latest 完全無法告訴我們現在跑的是哪個版本，因為每次 build 都可能覆蓋掉 latest 指向的內容。
+看第一列，用 latest 的話，團隊根本不知道現在跑的是哪個版本，因為每次 build 都可能覆蓋它。
 
-第二列更嚴重，一旦正式環境出包想回滾，如果只靠 latest，我們根本不知道「上一個能動的版本」是什麼，因為它已經被新的 latest 蓋掉了。
+第二列更嚴重。正式環境出問題想回到上一版，如果只有 latest，我們不知道上一個能動的版本是什麼，因為它已經被新的蓋掉了。
 
-⚠️ 特別提醒：latest 不是「最新穩定版」的意思，它只是 Docker 沒有指定 tag 時的預設名稱，跟「穩定」、「推薦」完全沒有關係，這是很多新手會誤會的地方。
+第三列也很常見。好幾台機器在不同時間拉 latest，可能各自拿到不同的內容。
+
+再強調一次，latest 不是「最新穩定版」的意思。它只是沒有指定 tag 時的預設名稱，跟穩定、推薦完全沒有關係。
 -->
 
 ---
@@ -314,17 +319,15 @@ FROM eclipse-temurin:21-jre-alpine@sha256:a8560b36e8b8210634f77d9f7f9efd7ffa463e
 ```
 
 <!--
-這頁帶大家看實際的 tag 命名範例。
+這一頁看實際的命名方式。
 
-語意化版號就是 SemVer，格式是主版本.次版本.修訂版本。修 bug 只加最後一碼，加新功能加中間一碼，有破壞相容性的改動才加第一碼。順帶一提，這個版本號實務上會跟 build.gradle 裡的 version 對齊，CI 直接讀出來用。
+語意化版號的格式是主版本、次版本、修訂版本。修 bug 只加最後一碼，例如 1.2.1。加新功能加中間一碼，例如 1.3.0。有不相容的改動，才加第一碼。這個版本號實務上會跟 build.gradle 裡的 version 對齊。
 
-第二段範例展示一次 build 打上三個 tag：1.3.0 給人看、git commit hash 給機器精準追蹤是哪次 commit、staging 給部署流程判斷要送去哪個環境。三個 tag 指向同一份 image，硬碟只佔一份。
+第三段一次打上三個 tag。1.3.0 給人看，git commit hash 給機器精準追蹤，staging 讓部署流程判斷要送到哪個環境。三個 tag 指向同一份 Image。
 
-那個 commit hash 的 tag 特別有價值。正式環境出包的時候，你從監控看到跑的是 taskboard-api:a3f9c1e，直接 git checkout a3f9c1e 就能看到當時一模一樣的程式碼，不用猜。
+commit hash 特別有價值。正式環境出問題時，看到跑的是哪個 hash，直接 checkout 那個 commit，就能看到當時一模一樣的程式碼。
 
-最後 Docker 官方文件特別提到更保險的做法是搭配 digest，也就是那串 sha256 開頭的雜湊值，這是根據 image 內容算出來的指紋，就算之後同一個 tag 被別人覆蓋成不同內容，我們鎖定 digest 的話還是能保證拿到原本那個版本。
-
-⚠️ 易錯點：digest 那串很長，通常不會手動記，而是在 CI/CD 流程裡自動產生、自動寫入設定檔。
+最後是更保險的 digest，也就是 sha256 開頭的那串雜湊值，它是依照 Image 內容算出來的指紋。就算 tag 被覆蓋，鎖定 digest 還是能拿到原本的版本。這串很長，通常由 CI 流程自動產生。
 -->
 
 ---
@@ -335,9 +338,7 @@ class: flex flex-col justify-center items-center text-center
 # CI/CD 概念與推送至 Registry
 
 <!--
-最後一部分，我們來聊聊怎麼把 image 送出去，還有簡單認識一下 CI/CD 是什麼。
-
-想像我們前面辛苦組好的貨（image），總得要有個倉庫可以寄放、也要有一套穩定的流程，確保每次出貨的品管都一致，這就是這一部分要講的東西。
+最後一部分，我們來看怎麼把 Image 送出去，以及 CI/CD 是怎麼把整個流程自動化的。
 -->
 
 ---
@@ -357,13 +358,13 @@ class: flex flex-col justify-center items-center text-center
 | Private repository | 需要權限才能存取，適合內部專案 |
 
 <!--
-先建立這個核心觀念：Registry 就是 image 的「倉庫」，我們把組好的貨放進去，其他機器（不管是同事的電腦還是正式環境的伺服器）就可以直接從倉庫拉貨，不用重新組一次。
+如果每到一台新機器，都要重新複製原始碼、重新 build，不但慢，環境差異也很容易造成「這邊能跑，那邊不能跑」。
 
-Docker Hub 是最知名、也是最大的公開 Registry，但企業內部也常常會架設自己的私有 Registry。
+「Registry 是集中存放、管理、分享 Docker image 的地方。」我們把做好的 Image 放進去，同事的電腦或正式伺服器，就能直接拉下來用。
 
-表格裡把幾個容易搞混的名詞釐清一下：Registry 是整個倉庫服務，Repository 是倉庫裡的一個專案分類，Tag 才是掛在 Repository 底下的具體版本。三層關係大家可以想成「倉庫 > 貨架 > 貨物批號」。
+表格裡三個名詞容易搞混，可以想成倉庫、貨架和批號。Registry 是整個倉庫服務，像 Docker Hub。Repository 是倉庫裡的一個貨架，例如 `myaccount/taskboard-api`。Tag 則是貨架上具體的那一批貨，也就是版本。
 
-⚠️ 易錯點：public repository 是任何人都能看、能拉的，不要把還沒公開的專案或含有機密資訊的 image 誤推到 public repository。
+要注意，public repository 任何人都能拉。還沒公開的專案，或含有機密資訊的 Image，不要推到公開的地方。
 -->
 
 ---
@@ -379,19 +380,15 @@ Docker Hub 是最知名、也是最大的公開 Registry，但企業內部也常
 | 5. 驗證 | `docker pull myaccount/taskboard-api:1.2.0` | 從部署伺服器測試拉取 |
 
 <!--
-這是這一部分最核心的一張表，把「從自己電腦到讓別人拉得到」拆成五個步驟。
+這張表把「從自己的電腦，到讓別人拉得到」拆成五個步驟。
 
-第一步 docker login 是先跟 Registry 證明「我是這個帳號」，登入憑證由 docker login 統一管理，之後 push 才有權限。
+第一步登入，向 Registry 證明我們的身分。第二步 build，照 Dockerfile 組出 Image。
 
-第二步 build 大家很熟了，就是照 Dockerfile 把 image 組出來。
+第三步很多新手會漏掉。推送之前，要把 Image 標記成包含帳號的完整名稱。只用 `taskboard-api` 的話，會被當成要推到官方的命名空間，直接被拒絕。
 
-第三步很多新手會漏掉：推送前必須把 image 標記成「registry 位址/帳號/名稱:tag」的完整格式，因為 Docker 預設推去 Docker Hub，如果沒加前綴或前綴不是我們自己的帳號，push 會失敗或推錯地方。
+第四步才是真正上傳。第五步是驗證，最好換一台機器，或先刪掉本機的 Image，重新拉一次，確認別人真的拉得到、拉得對。
 
-第四步才是真正的上傳動作，第五步則是驗證，最好找另一台機器（或先刪掉本機的 image）重新 pull 一次，確認別人真的拉得到、也拉得對。
-
-⚠️ 易錯點：第三步的 tag 名稱一定要包含帳號或組織名稱，例如 myaccount/taskboard-api，不能只用 taskboard-api，不然會被當成要推去官方保留的命名空間，通常會被拒絕。
-
-順帶提醒，TaskBoard 有兩個 image 要推：taskboard-api 跟 taskboard-web。db 不用推，因為它直接用官方的 mysql:8.4。這也是一個實務原則——能用官方 image 就別自己包。
+順帶一提，TaskBoard 只需要推 api 和 web 兩個 Image。資料庫直接用官方的 `mysql:8.4`，這也是一個實務原則，能用官方 Image 就不要自己包。
 -->
 
 ---
@@ -423,17 +420,15 @@ docker compose pull && docker compose up -d
 ```
 
 <!--
-帶大家實際走一次完整流程，這就是 TaskBoard 真正上線的樣子。
+這一頁把五個步驟實際走一次，這就是 TaskBoard 上線的樣子。
 
-注意第 3 步同時打了 1.2.0 跟 latest：語意化版號給精準追蹤用，latest 方便沒指定版本時的預設拉取。但正式環境的 compose.yaml 一定要明確寫版本號，不要依賴 latest。
+第三步同時打了 1.2.0 和 latest。版本號用來精準追蹤，latest 方便沒指定版本時拉取。但正式環境的 compose.yaml，一定要明確寫版本號。
 
-第 5 步是這頁最實用的一段，也是把前面所有東西串起來的地方。部署伺服器上不需要有原始碼、不需要裝 JDK、不需要裝 Node，只要有 Docker、一份 compose.yaml 跟一份 .env。要升版就改 .env 裡的 TASKBOARD_VERSION，然後 compose pull 把新 image 拉下來、compose up -d 讓 Compose 自動把有變動的服務重建重啟。
+第四步的 `--all-tags`，會一次推送這個 repository 的所有標籤。
 
-回滾更簡單：.env 改回 1.1.0，同樣兩行指令，三十秒回到上一版。這就是我們前面堅持要有版本 tag 的回報。
+第五步是把前面所有東西串起來的地方。部署伺服器上不需要原始碼、不需要 JDK、也不需要 Node，只要有 Docker、一份 compose.yaml 和一份 .env。要升版，就改 .env 的版本號，再執行 pull 和 up 兩個指令，Compose 會自動重建有變動的服務。
 
-預期結果：push 完成後到 Docker Hub 該帳號頁面，能看到 taskboard-api 跟 taskboard-web 兩個 repository。
-
-⚠️ 推送過程中進度條顯示的是「未壓縮」大小，實際傳輸的資料量因為壓縮而更小，所以不用太在意進度條顯示的數字比預期的檔案大。
+回到上一版也一樣簡單，把版本號改回去，同樣兩行指令，三十秒就完成。這就是堅持打版本 tag 的回報。
 -->
 
 ---
@@ -452,15 +447,15 @@ docker compose pull && docker compose up -d
 | CD（持續部署）| 自動 push 到 Registry，再部署到伺服器 |
 
 <!--
-這張帶入 CI/CD 的概念，先講痛點：手動流程步驟一多就容易出錯，尤其團隊人數變多、部署頻率變高之後，手動操作幾乎一定會出包。
+手動 build、tag、push、部署，步驟一多，就很容易漏做或出錯。團隊人數變多、部署變頻繁之後，更是幾乎一定會出問題。
 
-CI/CD 說穿了就是把我們前面學的 build、tag、push 這一整套流程，寫成腳本、交給自動化工具去跑，開發者只要專心把程式碼 push 上去，後面的事情工具會自動接手。
+「CI/CD 的核心精神，是把 build、測試、push、部署交給自動化流程，人只需要專心寫程式。」
 
-表格描述的是最基本的流程骨架：開發者 push 程式碼 → CI 工具自動 build 並跑測試 → 測試過了自動打 tag → CD 工具自動推送並部署。像 GitHub Actions、GitLab CI 這些工具都是在做這件事。
+看這張表，流程是這樣的。開發者把程式碼 push 到 Git，CI 自動 build Image 並執行測試。測試通過後自動打上 tag，CD 再自動推到 Registry，部署到伺服器。GitHub Actions、GitLab CI 這些工具，做的就是這件事。
 
-⚠️ 這裡先講觀念，不深入特定工具的設定語法，重點是理解「自動化取代手動重複步驟」這個核心精神，等大家有需要時再去查特定 CI/CD 工具的文件。
+這裡我們先建立觀念，不深入特定工具的語法。說穿了，CI/CD 跑的就是我們剛才手動打的那些指令。
 
-補充一提，testcontainers.com 這類工具也常被整合進 CI 流程裡，用來在自動化測試階段直接啟動真實的資料庫、訊息佇列等容器做整合測試，這也是 Docker 在 CI/CD 裡很實用的一種應用場景。對 Spring Boot 專案來說特別好用——整合測試不用再靠 H2 假裝自己是 MySQL，直接開一個真的 MySQL 8.4 容器來跑。
+【講師】可補充 Testcontainers：Spring Boot 整合測試可以直接開一個真正的 MySQL 8.4 容器，不用再用 H2 假裝成 MySQL。
 -->
 
 ---
@@ -487,15 +482,15 @@ services:
 ```
 
 <!--
-這頁是把 TaskBoard 推上正式環境前的最後一哩路，三件事。
+推上正式環境之前，還有最後一哩路，這份設定做了三件事。
 
-第一是 restart: unless-stopped。容器如果因為 OOM 或程式例外掛掉，Docker 會自動重啟；主機重開機它也會自己起來。不加這行，半夜服務掛了就是掛到早上。unless-stopped 的意思是「除非你手動 stop，否則我一直重啟」，比 always 好，因為你手動停掉的服務不會被硬拉起來。
+第一是 restart。容器因為錯誤停掉，Docker 會自動重啟，主機重開機也會自己起來。unless-stopped 的意思是除非我們手動 stop，否則一直重啟。
 
-第二是 healthcheck，這裡用 Spring Boot Actuator 的 /actuator/health。這比單純看「容器有沒有在跑」精準太多——Java 行程還活著，但資料庫連線池爆了、應用其實已經沒有服務能力，這種情況只有健康檢查抓得到。注意 start_period 那行，Spring Boot 啟動要二三十秒，沒有寬限期的話它會在啟動途中就被判定不健康。
+第二是 healthcheck，用 Spring Boot Actuator 的 health 端點判斷服務是否正常。Java 程式還在跑，但資料庫連線池已經滿了，這種情況只有健康檢查抓得到。注意 start_period，Spring Boot 啟動要二三十秒，沒有寬限期，它會在啟動途中就被判定為不健康。
 
-第三是資源限制，這是很多人忽略但很重要的一項。JVM 預設會看「整台主機」有多少記憶體來決定堆積大小，主機有 32GB 它就敢用 8GB。萬一 API 有記憶體洩漏，它會一路吃到把整台機器連同資料庫一起拖垮。設了 memory: 1g 之後，容器最多用 1GB，超過就只有這個容器被 OOM kill 掉，其他服務不受影響——爆炸有邊界。
+第三是資源限制。JVM 預設會依照整台主機的記憶體決定能用多少。萬一 API 有記憶體洩漏，可能把整台機器連同資料庫一起拖垮。設了 1g 的上限，超過時只有這個容器被停掉，其他服務不受影響。
 
-那個 JAVA_TOOL_OPTIONS 的 MaxRAMPercentage 是 Java 專屬的配套。新版 JVM 已經看得懂容器的記憶體上限，這行是明確告訴它「堆積最多用容器上限的 75%」，剩下的留給 metaspace、執行緒堆疊這些非堆積記憶體。⚠️ 沒設這個的話，JVM 堆積可能貼著容器上限成長，然後在 GC 之前就先被 Docker 殺掉，log 裡什麼線索都沒有，只留下一個 Exit Code 137，很難查。
+最後一行是 Java 專屬的配套，讓 JVM 堆積最多只用容器上限的 75%。沒設的話，可能還沒觸發垃圾回收，就先被 Docker 強制停掉，只留下 Exit Code 137，很難追查。
 -->
 
 ---
@@ -514,11 +509,15 @@ layout: default
 5. 驗證：`docker compose up -d` 之後，用 `docker compose exec api env | grep SPRING` 確認密碼真的有被注入容器
 
 <!--
-第一題重點在複習前兩部分的核心觀念：設定與程式碼分開、密碼不進版控、版本要有明確標記。
+接下來是練習一，把 TaskBoard 的密碼從版控裡趕出去。
 
-第 5 步的驗證很重要，因為改成 ${} 之後最常見的失敗是「Compose 找不到變數，就默默代入空字串」，結果密碼變成空的，資料庫連不上。用 exec env 檢查一次最保險。
+拿出第五章那份 compose.yaml，把密碼和版本號移到 .env，compose.yaml 全部改用插值。再把 .env 加進 .gitignore，並建立 `.env.example`。最後用 exec 驗證密碼真的有被注入容器。
 
-給同學一點時間動手，等一下看提示。
+請大家先想一個問題：如果 Compose 找不到某個變數，會發生什麼事？它會報錯，還是默默代入其他值？
+
+我們先暫停一下，自己動手試試看。
+
+【講師】給大家十分鐘左右，提醒第五步的驗證一定要做。
 -->
 
 ---
@@ -555,11 +554,13 @@ docker compose exec api env | grep SPRING
 </div>
 
 <!--
-提示給得很具體了，大家對照自己的答案看看。
+我們來看解題的關鍵。
 
-我特別想推薦 docker compose config 這個指令，很多人不知道。它會把 ${} 全部展開之後印出來，變數有沒有讀到、讀到什麼值，一目了然。⚠️ 但也因為它會印出明文密碼，不要在共用螢幕或會被錄影的場合亂打。
+回答剛才的問題。Compose 找不到變數時，不會中斷，而是默默代入空字串。結果密碼變成空的，資料庫就連不上。所以第五步的驗證很重要。
 
-⚠️ 另一個要提醒的坑：.gitignore 加了 .env 之後，如果 .env 之前已經不小心 commit 過，光加 .gitignore 是沒用的，舊 commit 裡還找得到。這種情況要處理 Git 歷史，而且最正確的做法是——直接把那組密碼換掉，因為它已經外洩了。
+這裡特別推薦 `docker compose config` 這個指令。它會把所有插值展開後印出來，變數有沒有讀到、讀到什麼值，一目了然。不過也因為它會印出明文密碼，不要在共用螢幕或錄影的場合使用。
+
+另一個要注意的坑是，如果 .env 之前已經 commit 過，光是加進 .gitignore 沒有用，舊的 commit 裡還找得到。最正確的做法是直接把那組密碼換掉，因為它已經外洩了。
 -->
 
 ---
@@ -579,11 +580,15 @@ layout: default
 6. **想一想**：正式環境發現 1.0.0 有嚴重 bug，要在三十秒內回到 0.9.0，你要改哪裡、打哪兩個指令？
 
 <!--
-第二題是整個課程的收尾題，把 build、tag、push、部署串成一條線，這些步驟正是 CI/CD 自動化背後實際執行的指令。
+練習二是整個課程的收尾題，把 TaskBoard 1.0.0 版完整發布出去。
 
-第 5 步請大家真的把本機 image 刪掉再拉，因為這才是「部署伺服器」的真實狀態——那台機器上沒有原始碼、沒有 JDK、沒有 Node，只有 Docker 跟兩個設定檔。能跑起來，就證明我們八章學的容器化真的完成了。
+任務是登入、建構兩個 Image、打上版本號、latest 和 commit hash 三種 tag，推送到 Registry。第五步請大家真的把本機的 Image 刪掉，再重新拉取，只用 compose.yaml 和 .env 啟動整套。因為這才是部署伺服器的真實狀態，沒有原始碼，只有 Docker 和兩個設定檔。
 
-第 6 題是我最想留給大家的一個觀念。答案是：改 .env 裡的 TASKBOARD_VERSION=0.9.0，然後 docker compose pull && docker compose up -d。就這樣，三十秒。這個能力——出事能快速回到上一個好版本——就是我們前面堅持要打版本 tag、堅持不用 latest 的全部理由。
+第六題請大家想一想：正式環境發現 1.0.0 有嚴重的 bug，要在三十秒內回到 0.9.0，要改哪裡？打哪兩個指令？
+
+我們先暫停一下，自己動手試試看。
+
+【講師】給大家十五分鐘左右，沒有 Docker Hub 帳號的同學可以先註冊。
 -->
 
 ---
@@ -620,11 +625,13 @@ docker compose pull && docker compose up -d
 </div>
 
 <!--
-對答案時間。重點是理解「為什麼是這個順序」：不登入就 push 會被拒絕；不 tag 成含帳號的格式，push 目標會不對。
+我們來看解答。順序很重要，不登入就推送會被拒絕，沒有標記成含帳號的名稱，就推不到正確的地方。
 
-⚠️ 第 5 步的驗證非常重要，很多人推送完就以為結束了，但沒有實際拉取驗證過，不知道部署機是不是真的拉得到、拉到的是不是預期的版本。養成「推送後一定驗證」的習慣。
+第五步的驗證非常重要。很多人推送完就以為結束了，但沒有實際拉取過，就不知道部署機是不是真的拿得到、拿到的是不是預期的版本。
 
-最後回顧一下我們這八章對 TaskBoard 做了什麼：第一章用 docker run 起了一個 MySQL，第八章我們有一套版本化、密碼不落地、可以三十秒回滾的完整部署流程。同一個專案，從「在我電腦上可以跑」變成「在任何裝了 Docker 的機器上都能跑」。這就是容器化。
+回答第六題。把 .env 的 TASKBOARD_VERSION 改成 0.9.0，然後執行 pull 和 up 兩個指令，三十秒就回到上一版。出事時能快速回到上一個好的版本，就是我們堅持打版本 tag、不依賴 latest 的全部理由。
+
+回頭看，第一章我們只用 docker run 起了一個 MySQL。到了第八章，TaskBoard 已經有一套版本化、密碼不進版控、可以快速回滾的完整部署流程。
 -->
 
 ---
@@ -634,7 +641,7 @@ layout: default
 <style>
 .summary-table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; }
 .summary-table th { text-align: left; padding: 10px 8px; color: #64748b; font-weight: 600; font-size: 0.95rem; border: none !important; border-bottom: 2px solid #e2e8f0 !important; }
-.summary-table td { text-align: left; padding: 12px 8px; border: none !important; border-bottom: 1px solid #e2e8f0 !important; }
+.summary-table td { text-align: left; padding: 9px 8px; border: none !important; border-bottom: 1px solid #e2e8f0 !important; }
 </style>
 
 # 本章總結 — 課程回顧
@@ -655,6 +662,20 @@ layout: default
 </tbody>
 </table>
 
+<!--
+最後，我們把八章串起來回顧一次。
+
+第一章，我們知道 Container 比 VM 更輕量。第二章，Image 是模板，Container 是實例。第三章學會 run、exec、logs 這些基本功。第四章用 Dockerfile 把組 Image 的過程寫成腳本。第五章用 Compose 一次啟動多個服務。第六章用自訂網路讓容器用名字溝通。第七章用 Volume 讓資料活得比容器久。這一章，則用 .env、版本 tag 和 Registry，把 TaskBoard 正式送出去。
+
+這八章其實是一條完整的路徑，從認識容器，到能獨立把一個專案部署上線。
+-->
+
+---
+layout: default
+---
+
+# 本章總結 — 最後叮嚀
+
 <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
 💡 <b>記住：</b> 密碼別進版控、image 別只靠 <code>latest</code>、推送前一定要驗證，做到這三件事就避開了新手最常踩的坑。
 </div>
@@ -664,13 +685,9 @@ layout: default
 </div>
 
 <!--
-八章課程走到這裡，我們一起回顧一下整個學習路徑。
+最後留給大家三句話。密碼別進版控，Image 別只靠 latest，推送之後一定要驗證。做到這三件事，就已經避開了新手最常踩的坑。
 
-從最開始理解 Container 跟 VM 的差異，到學會操作 image 跟 container，再到用 Dockerfile 把「怎麼組 image」寫成腳本、用 Compose 把多個服務兜在一起，接著補上網路和資料持久化這兩塊基礎建設知識，最後這一章則是把「怎麼安全、有版本紀錄地把東西送出去」補齊。
-
-這八個章節其實是一條完整的路徑：從「認識容器」到「能夠獨立把一個專案部署出去」。走到這裡，大家已經具備完整部署一個 Docker 化專案所需要的核心知識了。
-
-⚠️ 最後提醒一次貫穿整個部署章節最重要的一句話：密碼別進版控、image 別只靠 latest、推送前一定要驗證。這三件事做到，就已經避開了新手最常踩的坑。
+接下來，建議大家找一個自己的小專案，實際走一次 Dockerfile、Compose、tag、push 的完整流程。動手做過一次，才會真正變成自己的技能。
 -->
 
 ---
@@ -682,9 +699,9 @@ layout: end
 有任何問題嗎？
 
 <!--
-現在開放 Q&A 時間。
+這門 Docker 課程到這裡就全部結束了。我們從「在我電腦上可以跑」出發，一路把 TaskBoard 變成在任何裝了 Docker 的機器上都能跑的專案。
 
-大家對環境變數管理、Image Tag 策略，或是 CI/CD 與推送到 Registry 的流程，有沒有什麼疑問？都歡迎提出來討論。
+謝謝大家這八章的參與，祝大家在之後的專案裡，都能用上這些容器化的技能。
 
-恭喜大家完成八章課程，接下來記得回來翻翻各章節的投影片，或直接查閱 Docker 官方文件，祝大家部署順利！
+【講師】開放 Q&A，可以引導大家回想 .env 和 environment 的差別、回滾流程，或整門課的任何問題。
 -->

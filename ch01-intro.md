@@ -42,13 +42,11 @@ style: |
 </div>
 
 <!--
-大家好，歡迎來到 Docker 課程的第一堂課。
+大家好，歡迎來到 Docker 課程的第一章。
 
-在正式進入 Docker 之前，我們先來想一個大家可能都遇過的場景：明明程式在自己電腦上跑得好好的，一丟到別台機器、或是丟到伺服器上就出錯了。這堂課就是要解決這個「在我電腦上是可以跑的」的經典痛點。
+我們先想一個很常見的場景。程式在自己電腦上跑得好好的，一丟到同學的電腦、或是部署到伺服器，就開始出錯。這就是經典的「在我電腦上可以跑」問題。
 
-今天這一章我們會學到三件事：第一，為什麼我們需要容器化，Container 跟傳統的虛擬機（VM）差在哪裡；第二，Docker 的架構長什麼樣子，Client、Daemon、Registry 這三個角色怎麼合作；第三，實際把 Docker Desktop 裝起來，並且用 hello-world 驗證安裝成功。
-
-準備好的話，我們開始吧。
+這一章我們要搞懂三件事：為什麼需要容器化，Docker 的架構怎麼運作，以及實際把 Docker Desktop 裝起來。學完之後，我們就能在自己的電腦上，用一行指令跑起一個資料庫。
 -->
 
 ---
@@ -63,13 +61,9 @@ layout: default
 - **練習** — 用課程專案 TaskBoard 走一次 `docker run` 流程
 
 <!--
-跟大家說明一下今天的路線圖。
+今天的路線是這樣的。我們先從「為什麼」開始，看看容器化解決了什麼問題，順便比較容器和虛擬機。
 
-我們會先從「為什麼」開始，也就是容器化到底解決了什麼問題，順便比較一下容器跟虛擬機的差異，這是最基礎但也最容易被忽略的觀念。
-
-接著我們會拆開 Docker 的架構，搞懂 Client、Daemon、Registry 這三個名詞到底各自負責什麼，指令下下去之後資料是怎麼流動的。
-
-最後我們會捲起袖子實際安裝 Docker Desktop，並且用官方提供的 hello-world 映像檔驗證安裝有沒有成功。這三部分學完，大家就對 Docker 有一個完整的第一印象了。
+接著拆開 Docker 的架構，搞懂 Client、Daemon、Registry 各自負責什麼。最後實際安裝 Docker Desktop，並且用課程專案 TaskBoard 走一次 `docker run` 的完整流程。
 -->
 
 ---
@@ -95,15 +89,13 @@ layout: default
 </div>
 
 <!--
-在進入觀念之前，先跟大家介紹這門課的「貫穿專案」。
+在進入觀念之前，先介紹這門課的貫穿專案，TaskBoard 任務看板。
 
-大家之前已經學過 Spring Boot、Angular 跟 MySQL，這門課不會再教這三項技術本身，而是把它們當成素材：我們要學的是怎麼把一個真實的三層架構專案容器化。
+大家之前學過 Spring Boot、Angular 跟 MySQL，這門課不會再教這三項技術本身。我們要學的，是怎麼把這樣一個三層架構的專案容器化。
 
-專案叫 TaskBoard，就是一個任務看板，功能很單純——建立任務、查詢任務、更新狀態。業務邏輯刻意做得簡單，因為我們的重點在 Docker，不在 CRUD。
+看表格的最後一欄，前端和後端之後會各自變成一個 Image，資料庫則直接用官方的 `mysql:8.4`。請求的路線很單純：瀏覽器先到 nginx，nginx 轉給 Spring Boot，Spring Boot 再去查 MySQL。
 
-架構就是最標準的三層：Angular 打包成靜態檔案由 nginx 服務，使用者的請求打到 Spring Boot API，API 再連到 MySQL。
-
-⚠️ 提醒大家一件很重要的事：這八章是連續的，第一章我們手動跑起來的 MySQL 容器，第七章還會回來處理它的資料持久化問題。所以每一章的練習請盡量真的動手做過，後面才不會接不上。
+要特別提醒，這八章是連續的。第一章手動跑起來的 MySQL 容器，第七章還會回來處理它的資料保存問題。所以每一章的練習，請盡量真的動手做過。
 -->
 
 ---
@@ -114,11 +106,7 @@ class: flex flex-col justify-center items-center text-center
 # 為什麼需要容器化
 
 <!--
-第一部分，我們來聊聊「為什麼需要容器化」。
-
-大家可以先想想自己有沒有遇過這種情況：專案在自己電腦上明明可以跑，結果換一台電腦、或是部署到伺服器上就整個壞掉。這種情況背後的原因通常都是環境不一致——版本不同、缺少某個套件、作業系統設定不一樣。
-
-接下來我們就是要理解，容器化是怎麼解決這個問題的，還有它跟我們比較熟悉的虛擬機（VM）到底有什麼不同。
+先從第一個問題開始：為什麼我們需要容器化？它跟大家比較熟悉的虛擬機，又差在哪裡？
 -->
 
 ---
@@ -136,13 +124,13 @@ class: flex flex-col justify-center items-center text-center
 </div>
 
 <!--
-先問大家一個問題：如果同一台電腦上同時裝了兩個專案，一個需要 Python 3.8，另一個需要 Python 3.11，會發生什麼事？沒錯，版本衝突，裝到最後兩邊都不能跑。
+想像同一台電腦上有兩個專案。一個需要 Python 3.8，另一個需要 Python 3.11。裝到最後，很可能兩邊都跑不起來。
 
-這就是容器化要解決的問題。Container 讓每個應用程式都活在自己的小房間裡，帶著自己需要的所有東西——函式庫、設定檔、執行環境，彼此互不影響。
+這就是容器化要解決的問題。「Container 就是應用程式各個組件的獨立隔離流程」，每個 Container 帶著自己需要的函式庫、設定和執行環境，不依賴主機上裝了什麼。
 
-生活化一點來說，就像便當盒，飯菜湯分開裝好，不管拿到哪裡打開都是一樣的味道，不會因為換了地方就走味、串味。
+生活一點來說，容器就像便當盒。飯、菜、湯分開裝好，帶到哪裡打開都是同樣的味道。
 
-⚠️ 這裡要提醒大家，Container 不是虛擬機，它不是完整的作業系統，這個差異我們下一頁馬上會講到，是很多人剛學 Docker 時最容易搞混的地方。
+拉回 TaskBoard，前端、API、資料庫就可以分別放進三個容器，彼此不會互相干擾。不過要注意，Container 不是虛擬機，這個差異我們下一頁馬上來看。
 -->
 
 ---
@@ -158,15 +146,13 @@ class: flex flex-col justify-center items-center text-center
 | 隔離程度 | 完整系統隔離，安全邊界較強 | 流程層級隔離，共享核心資源 |
 
 <!--
-這張表格是今天最重要的一張，大家一定要搞清楚。
+這張表是今天最重要的一張，我們挑重點看。
 
-虛擬機是「連作業系統都自己帶一份」，就像每個人都自己蓋一棟完整的房子，裡面水電瓦斯全部自己接一套，當然很重、很慢。
+虛擬機是連作業系統都自己帶一份，就像每戶人家都自己蓋一棟房子，水電全部自己接，所以很重、開機很慢。
 
-容器則是共用主機的核心（Kernel），只帶自己需要的應用程式和函式庫，比較像大家住在同一棟大樓裡，共用水電管線，但每一戶室內裝潢、家具都是獨立的，互不干擾。
+容器則是共用主機的核心，只帶應用程式需要的檔案。比較像大家住在同一棟大樓，共用水電管線，但每一戶的室內裝潢是獨立的。所以容器啟動只要幾秒，映像檔也小很多。
 
-⚠️ 常見誤解是以為 Container 是「輕量版的 VM」，其實它們運作原理完全不同：VM 靠 Hypervisor 模擬硬體，Container 靠作業系統層級的隔離機制（namespace、cgroup）。這也是為什麼 Container 啟動速度可以快這麼多。
-
-實務上這兩個技術也不是互斥的，雲端環境常常是「VM 裡面跑 Container」，先用 VM 做大範圍的隔離，裡面再用 Container 做應用程式層級的隔離，兩者互補。
+很多人會以為 Container 是輕量版的 VM，其實兩者原理完全不同。VM 靠 Hypervisor 模擬硬體，Container 靠作業系統層級的隔離機制。在雲端環境裡，常常是 VM 裡面再跑 Container，兩者是互補的。
 -->
 
 ---
@@ -185,13 +171,13 @@ Container 的四個核心特性：
 </div>
 
 <!--
-這一頁把 Container 的四個特性攤開來講清楚：自含、隔離、獨立、可攜。
+這一頁把 Container 的四個特性整理在一起：自含、隔離、獨立、可攜。
 
-「可攜性」是我一開始講的「在我電腦上可以跑」問題的解答——因為 Container 把環境整包帶走，所以在你電腦上能跑，丟到別的機器上，只要有 Docker，一樣可以跑，環境完全一致。
+其中「可攜性」就是開頭那個問題的解答。Container 把環境整包帶走，所以在我們電腦上能跑，丟到別台只要有 Docker 的機器，一樣能跑。
 
-⚠️ 但要提醒大家，Container 的隔離不是無敵的，它跟 VM 那種完整系統層級的隔離不一樣，Container 之間還是共用同一個主機核心。所以如果是需要嚴格安全隔離的場景，例如多個不同客戶共用同一台主機，通常還會搭配額外的安全設定，不能只靠 Container 本身。
+不過下面這個提醒也很重要。Container 之間共用同一個主機核心，隔離程度沒有 VM 那麼徹底。如果是很多不同客戶共用一台主機這種情境，通常還要搭配額外的安全設定。
 
-業界實務上，Container 主要拿來解決「開發到部署環境一致」的問題，這也是為什麼幾乎所有現代的 CI/CD 流程都會用到 Docker。
+在實際專案裡，Container 最主要是解決「開發到部署環境一致」的問題，這也是為什麼現代的 CI/CD 流程幾乎都會用到 Docker。
 -->
 
 ---
@@ -202,11 +188,7 @@ class: flex flex-col justify-center items-center text-center
 # Docker 架構
 
 <!--
-第二部分，我們來拆解 Docker 的架構。
-
-前面我們知道了 Container 是什麼，但當我們打一個 `docker run` 指令的時候，背後到底發生了什麼事？誰負責接收這個指令？映像檔又是從哪裡來的？
-
-這一部分我們會認識三個關鍵角色：Client、Daemon、Registry，搞懂他們之間怎麼互相合作。
+知道容器是什麼之後，接下來看 Docker 的架構：當我們打下一行 `docker run`，背後到底是誰在做事？
 -->
 
 ---
@@ -222,11 +204,11 @@ class: flex flex-col justify-center items-center text-center
 「Docker Client 與 Daemon 之間透過 REST API、UNIX socket 或網路介面通訊」，Docker Desktop 則整合 Daemon、Client、Compose 等工具，一次安裝即可完成部署。
 
 <!--
-先把三個角色的關係講清楚：Client 是我們打字的地方，Daemon 是真正做事的背景程式，Registry 則是倉庫，專門存放 Image。
+Docker 有三個關鍵角色。Client 是我們打指令的地方，Daemon 是在背景真正做事的程式，Registry 則是存放 Image 的倉庫。
 
-大家可以把這個關係想成餐廳點餐：我們（Client）跟服務生說要點什麼餐，廚房（Daemon）收到訂單後開始準備，如果食材不夠，廚房就會去食材倉庫（Registry）調貨。
+我們可以把它想成餐廳點餐。我們是客人，跟服務生點餐，這就是 Client。廚房收到訂單開始做菜，這是 Daemon。食材不夠的時候，廚房會去食材倉庫調貨，那個倉庫就是 Registry。
 
-⚠️ 這裡要特別提醒，Client 跟 Daemon 不一定要在同一台機器上，Client 可以透過網路連到遠端的 Daemon，這也是為什麼 Docker 可以拿來管理遠端伺服器上的容器。
+拉回技術，Client 和 Daemon 之間是透過 REST API 溝通的。所以它們不一定要在同一台機器上，Client 也可以連到遠端伺服器的 Daemon，去管理那邊的容器。
 -->
 
 ---
@@ -251,19 +233,15 @@ docker run -d --name taskboard-db -p 3307:3306 \
 執行後，我們就能用平常慣用的 MySQL Workbench 或 DBeaver，連到 `localhost:3307` 使用這個資料庫。
 
 <!--
-這頁我們把「打指令之後發生了什麼事」完整走過一遍，這是理解 Docker 架構最直觀的方式。
+這一頁我們直接拿 TaskBoard 的資料庫，走一次 `docker run` 背後的流程。
 
-我們直接拿 TaskBoard 專案的資料庫來當例子。以前大家在自己電腦上裝 MySQL，要下載安裝檔、設定密碼、設定路徑，弄個十幾分鐘跑不掉；現在一行指令就有一台乾淨的 MySQL 8.4。
+先看參數。`-d` 讓容器在背景執行，`--name taskboard-db` 幫容器取名字，之後所有指令都用這個名字操作它。`-e` 是帶環境變數進去，MySQL 官方 Image 就是靠這兩個變數設定 root 密碼和建立資料庫。
 
-帶大家看一下參數：`-d` 是背景執行，不然終端機會被 MySQL 的 log 佔滿；`--name taskboard-db` 幫容器取名字，之後所有指令都可以用這個名字操作它；`-p 3307:3306` 是 port 映射，冒號左邊是我們電腦的 port、右邊是容器裡面的 port；`-e` 則是帶環境變數進去，MySQL 官方 Image 就是靠 MYSQL_ROOT_PASSWORD 跟 MYSQL_DATABASE 這兩個變數來初始化的。
+`-p 3307:3306` 是 port 映射，左邊是我們電腦的 port，右邊是容器裡的 port。主機用 3307 而不是 3306，是因為很多人電腦本來就裝了 MySQL，佔用了 3306，這樣可以避開衝突。
 
-⚠️ 這裡特別解釋一下為什麼主機端用 3307 而不是 3306：很多同學電腦上本來就裝了 MySQL，佔用了 3306，如果這裡也用 3306 就會 port 衝突啟動失敗。用 3307 可以完全避開，容器內部仍然是標準的 3306。
+流程就是下面這五步。Client 把指令送給 Daemon，Daemon 先找本機有沒有 `mysql:8.4`，沒有就去 Registry 下載，接著建立並啟動容器。
 
-流程走一遍：我們在 Client 打指令，Daemon 收到後先看看本機倉庫有沒有這個 Image，沒有的話就跑去 Registry（Docker Hub）拉一份下來，拉完之後才真正建立 Container 並啟動它。
-
-⚠️ 易錯點：第一次執行會需要等待下載時間，mysql:8.4 大概幾百 MB，這是正常的，不是指令壞掉了。之後同一個 Image 再跑就直接用本機快取，一兩秒就起來。
-
-預期結果：指令跑完會印出一長串容器 ID，用 GUI 工具連 localhost:3307、帳號 root、密碼 rootpw，就能看到裡面已經有一個叫 taskboard 的空資料庫。
+第一次執行要等下載，這是正常的。執行完會印出一長串容器 ID，接著用 DBeaver 連 `localhost:3307`，就能看到一個叫 taskboard 的空資料庫。
 -->
 
 ---
@@ -274,9 +252,7 @@ class: flex flex-col justify-center items-center text-center
 # 安裝與驗證
 
 <!--
-第三部分，我們要動手把 Docker Desktop 裝起來。
-
-前面講了這麼多觀念，現在終於可以實際操作了。這一部分我們會看系統需求、安裝步驟，最後用官方提供的 hello-world 映像檔驗證安裝是否成功。
+觀念講得差不多了，接下來我們動手，把 Docker Desktop 裝起來並且驗證它能正常運作。
 -->
 
 ---
@@ -296,13 +272,13 @@ class: flex flex-col justify-center items-center text-center
 </div>
 
 <!--
-安裝 Docker Desktop 之前，我們先確認一下環境條件，這張表格列出最重要的幾個需求。
+安裝之前，先確認一下 Windows 的環境條件。
 
-現在絕大多數新的 Windows 電腦都建議用 WSL 2 這個後端，它讓 Windows 可以跑一個真正的 Linux 核心，Docker 容器就是靠這個核心運作的。
+這張表挑兩個重點看。第一個是後端，建議使用 WSL 2，它讓 Windows 可以跑一個真正的 Linux 核心，Docker 容器就是靠這個核心運作的。第二個是硬體，BIOS 裡要開啟硬體虛擬化。
 
-⚠️ 易錯點：很多人安裝失敗是因為忘記在 BIOS 裡開啟硬體虛擬化功能，或是 WSL 2 版本太舊。安裝前可以先用 `wsl --version` 檢查一下版本。
+很多人安裝失敗，就是忘了開虛擬化，或是 WSL 版本太舊。安裝前可以先用 `wsl --version` 檢查一下。
 
-補充一下授權部分，個人學習完全不用擔心，免費使用沒有問題，只有規模比較大的企業才需要付費訂閱，這點大家不用太緊張。
+授權的部分大家不用擔心。個人學習和教學是免費的，只有規模比較大的企業商用才需要付費。
 -->
 
 ---
@@ -338,11 +314,11 @@ class: flex flex-col justify-center items-center text-center
 </div>
 
 <!--
-在看實機畫面之前，先給大家一張流程總覽，心裡有個底。
+在看實機畫面之前，先給大家一張流程總覽。
 
-整個安裝只有四步：下載、安裝、啟動、驗證。接下來每一頁我都會放實際操作的畫面，大家可以一邊看一邊跟著做。
+整個安裝只有四步：下載、安裝、啟動、驗證。接下來每一頁都是實際操作的畫面，大家可以一邊看一邊跟著做。
 
-要提醒的是，畫面版本是 Docker Desktop 4.86.0，如果你裝的版本比較新，畫面細節可能略有不同，但流程是一樣的。
+畫面上的版本是 Docker Desktop 4.86.0。如果我們裝的版本比較新，畫面細節可能有點不同，但流程是一樣的。
 -->
 
 ---
@@ -372,11 +348,11 @@ class: flex flex-col justify-center items-center text-center
 </div>
 
 <!--
-第一步，到官方頁面下載安裝檔，網址是 docker.com/products/docker-desktop。
+第一步，到 Docker 官網的下載頁面。
 
-畫面正中間這顆藍色的 Download Docker Desktop 按鈕就是下載入口，網站會自動偵測你的作業系統，推薦對應的版本。如果它偵測錯了，按鈕旁邊的下拉選單可以手動選 Windows / macOS / Linux。
+畫面正中間這顆藍色的 Download Docker Desktop 按鈕，就是下載入口。網站會自動偵測作業系統，推薦對應的版本。如果偵測錯了，可以從按鈕旁邊的下拉選單手動選擇。
 
-右邊我也放了官方安裝文件的連結，遇到比較特殊的環境問題可以去那邊查。
+右邊也放了官方安裝文件的連結。遇到比較特殊的環境問題，可以去那邊查。
 -->
 
 ---
@@ -394,9 +370,9 @@ class: flex flex-col justify-center items-center text-center
 </div>
 
 <!--
-下載完成之後，到「下載」資料夾找 Docker Desktop Installer.exe。
+下載完成之後，到下載資料夾找 `Docker Desktop Installer.exe`。
 
-注意一下檔案大小，大約 600 MB，如果網路比較慢要等一下。如果你的檔案明顯小很多，很可能是下載中斷了，重新下載一次。
+注意一下檔案大小，大約 600 MB。如果檔案明顯小很多，很可能是下載中斷了，重新下載一次就好。
 
 找到之後雙擊它，就會進入安裝精靈。
 -->
@@ -428,17 +404,13 @@ class: flex flex-col justify-center items-center text-center
 </div>
 
 <!--
-雙擊之後看到的第一個畫面是 Configuration，選擇安裝模式。
+雙擊之後，第一個畫面是 Configuration，要選擇安裝模式。
 
-預設是 Per-user installation，也就是個別使用者模式，這是官方推薦的。它的好處是不需要管理員權限就能裝，後端用的是 WSL 2。對我們上課的情境來說，這個選項最方便。
+預設的 Per-user installation 是官方推薦的選項。它只裝給目前的使用者，不需要管理員權限，後端用的是 WSL 2。對我們上課來說，這個選項最方便。
 
-下面的 All-users installation 是全機器安裝，會要求輸入管理員密碼，如果你的電腦有多個使用者帳號都要用 Docker，才需要選它。
+下面的 All-users installation 是全機器安裝，會要求管理員密碼。如果選了它卻沒有管理員權限，安裝會直接失敗。不確定的話，維持預設就好。
 
-Add shortcut to desktop 建議勾著，等一下要開 Docker Desktop 比較好找。
-
-⚠️ 易錯點：如果你選了 All-users installation 卻沒有管理員權限，安裝會直接失敗。不確定的話就維持預設。
-
-確認之後按 OK。
+Add shortcut to desktop 建議勾著，等一下比較好找。確認之後按 OK。
 -->
 
 ---
@@ -466,11 +438,11 @@ Add shortcut to desktop 建議勾著，等一下要開 Docker Desktop 比較好�
 <!--
 按下 OK 之後就進入安裝過程。
 
-左邊這張是 Unpacking files，進度條會跑一到兩分鐘，這段時間它在解壓縮檔案並設定 WSL 2 的整合環境，耐心等它跑完，不要中途關掉。
+左邊是 Unpacking files，進度條大概會跑一到兩分鐘。這段時間它在解壓縮檔案、設定 WSL 2 的整合環境，耐心等它跑完，不要中途關掉。
 
-右邊這張出現 Installation succeeded 就代表安裝完成了，按 Close 關掉安裝精靈。
+右邊出現 Installation succeeded，就代表安裝完成了，按 Close 關掉。
 
-這裡有一個跟舊版不一樣的地方要講：如果你選的是 Per-user installation，安裝完不需要登出 Windows，可以直接開來用。只有全使用者模式才可能要求登出再登入，看到那個提示記得先存好檔案。
+如果我們選的是個別使用者模式，裝完不需要登出 Windows，可以直接開來用。只有全使用者模式，才可能要求登出再登入。
 -->
 
 ---
@@ -502,13 +474,13 @@ Add shortcut to desktop 建議勾著，等一下要開 Docker Desktop 比較好�
 </div>
 
 <!--
-安裝完成之後，從桌面捷徑或開始功能表打開 Docker Desktop。
+安裝完成後，從桌面捷徑或開始功能表打開 Docker Desktop。
 
-第一次啟動一定會跳出這個 Docker Subscription Service Agreement，也就是訂閱服務條款。要按右下角的 Accept 才會繼續。
+第一次啟動一定會跳出服務條款，要按右下角的 Accept 才會繼續。
 
-⚠️ 易錯點：這是最常見的「裝完打不開」原因。其實不是打不開，是條款還沒按同意，程式就停在這一步。
+這是最常見的「裝完打不開」原因。其實程式不是壞了，只是停在條款這一步，還沒按同意。
 
-順帶提一下授權：個人學習、教學、非商業開源專案都是免費的；只有員工超過 250 人或年營收超過 1000 萬美元的企業商用才需要付費訂閱，大家上課不用擔心。
+授權的部分前面提過，個人學習和教學都是免費的，大家可以放心按下去。
 -->
 
 ---
@@ -538,13 +510,11 @@ Add shortcut to desktop 建議勾著，等一下要開 Docker Desktop 比較好�
 </div>
 
 <!--
-同意條款之後會看到 Welcome to Docker 這個畫面，它會希望你登入 Docker 帳號。
+同意條款之後，會看到 Welcome to Docker 的畫面，希望我們登入 Docker 帳號。
 
-我們這門課的前半段完全不需要登入，直接按右上角的 Skip 跳過就好。
+這門課的前半段完全不需要登入，直接按右上角的 Skip 跳過就好。
 
-那什麼時候才會需要 Docker 帳號呢？主要有三個情況：第一，第二章我們要把自己 build 出來的 Image push 到 Docker Hub，那時候一定要登入；第二，如果公司有私有的 Registry，要拉私有 Image 也要登入；第三，Docker Hub 對沒登入的匿名使用者有拉取次數限制，登入之後額度會比較寬鬆。
-
-現在先按 Skip，等第二章再回來註冊帳號。
+什麼時候才需要帳號呢？主要有三種情況。第一，要把自己的 Image 推到 Docker Hub，第二章會用到。第二，要拉公司私有 Registry 的 Image。第三，Docker Hub 對沒登入的使用者有下載次數限制，登入後會比較寬鬆。
 -->
 
 ---
@@ -553,7 +523,7 @@ Add shortcut to desktop 建議勾著，等一下要開 Docker Desktop 比較好�
 
 <div class="flex flex-col items-center">
 
-<img src="/docker-install-08-dashboard.png" style="width: 78%; border-radius: 6px; border: 1px solid #d0d7de;" />
+<img src="/docker-install-08-dashboard.png" style="width: 70%; border-radius: 6px; border: 1px solid #d0d7de;" />
 
 </div>
 
@@ -562,13 +532,11 @@ Add shortcut to desktop 建議勾著，等一下要開 Docker Desktop 比較好�
 </div>
 
 <!--
-按下 Skip 之後就進入 Docker Desktop 的主畫面了。
+按下 Skip 之後，就進入 Docker Desktop 的主畫面。
 
-左邊這一排是主要功能：Containers 看容器、Images 看映像檔、Volumes 看資料卷、Logs 看日誌，這幾個是我們後面每一章都會用到的。現在因為還沒跑任何東西，Containers 這頁是空的，寫著「Your running containers show up here」。
+左邊這一排是主要功能，Containers、Images、Volumes 這幾個，後面每一章都會用到。現在還沒跑任何東西，所以 Containers 這頁是空的。
 
-最重要的是看左下角這一行：綠色的 Engine running。這代表 Docker 的 Daemon 已經跑起來了。右下角會顯示版本號，我這台是 v4.86.0。
-
-⚠️ 如果左下角顯示的是 Starting 或紅色的 Engine stopped，先等一下或重開 Docker Desktop，這時候下 docker 指令一定會失敗。
+最重要的是左下角，綠色的 Engine running，代表 Docker 的 Daemon 已經跑起來了。如果看到的是 Starting 或紅色的 Engine stopped，先等一下或重開 Docker Desktop，這時候下指令一定會失敗。
 
 看到 Engine running，就可以打開終端機來驗證了。
 -->
@@ -590,11 +558,13 @@ Add shortcut to desktop 建議勾著，等一下要開 Docker Desktop 比較好�
 </div>
 
 <!--
-Mac 安裝分兩種晶片：Apple Silicon 跟 Intel，下載頁面會自動列出兩個版本，選錯晶片會裝不起來。
+用 Mac 的同學看這一頁。
 
-跟 Windows 不一樣，Mac 這邊沒有 WSL 這種東西，Docker Desktop 直接用 macOS 內建的虛擬化框架來跑 Linux 核心。
+Mac 有兩種晶片，Apple Silicon 和 Intel，安裝檔是不一樣的。下載前先從選單列的「關於這台 Mac」確認自己的晶片，選錯會裝不起來。
 
-⚠️ 易錯點：Apple Silicon 的 Mac 如果要跑一些只有 x86 版本的舊 Image，可能要靠 Rosetta 2 才能正常執行，這也是為什麼建議裝一下。
+跟 Windows 不同，Mac 沒有 WSL，Docker Desktop 直接用 macOS 內建的虛擬化框架來跑 Linux 核心。
+
+Apple Silicon 的 Mac 建議順手裝 Rosetta 2。遇到一些只有 x86 版本的舊 Image，就要靠它才能執行。
 -->
 
 ---
@@ -614,13 +584,11 @@ sudo hdiutil detach /Volumes/Docker
 安裝完成後，從「應用程式」資料夾開啟 `Docker.app`，選單列出現鯨魚圖示，並同意訂閱服務條款，就代表 Docker Desktop 已啟動。
 
 <!--
-Mac 安裝最直覺的方式就是圖形介面：拖拉安裝，跟裝一般 Mac 軟體一樣。
+Mac 最直覺的安裝方式是圖形介面，把 Docker 圖示拖進應用程式資料夾，跟裝一般 Mac 軟體一樣。
 
-如果是要幫多台機器批次安裝，命令列這幾行指令可以做到無人值守安裝，`--accept-license` 直接跳過條款確認畫面，`--user` 這個參數則可以指定安裝給哪個使用者。
+如果要幫很多台機器批次安裝，可以用下面這三行指令。關鍵是中間那行的 `--accept-license`，它會直接跳過條款確認畫面，做到無人值守安裝。要注意這些指令都需要 `sudo` 權限，沒有管理員密碼會失敗。
 
-⚠️ 易錯點：命令列安裝需要 `sudo` 權限，沒有管理員密碼會安裝失敗。
-
-預期結果：選單列出現鯨魚圖示且不再跳動，代表 Daemon 已經啟動完成，可以打開終端機開始使用 `docker` 指令。
+裝好之後打開 `Docker.app`，選單列出現鯨魚圖示而且不再跳動，就代表 Daemon 已經啟動完成，可以開始用 `docker` 指令了。
 -->
 
 ---
@@ -639,13 +607,15 @@ docker run hello-world
 看到畫面出現「Hello from Docker!」開頭的文字，就代表我們的 Client、Daemon、Registry 三個環節全部串起來，Docker 安裝成功。
 
 <!--
-這是安裝完之後最重要的一步：驗證。`docker run hello-world` 是 Docker 官方特地準備的最小範例，專門用來確認整個環境有沒有裝對。
+裝好之後，最重要的一步是驗證。
 
-大家可以把這個過程對照我們第二部分講的架構圖：Client 發出指令、Daemon 去 Registry 拉 Image、拉完建立 Container 執行，這個 hello-world 範例正好把三個角色全部走過一遍，是很好的複習。
+我們先用 `docker --version` 確認指令存在，再執行 `docker run hello-world`。hello-world 是官方準備的最小 Image，專門用來確認環境有沒有裝對。
 
-⚠️ 易錯點：如果執行後出現連線錯誤，通常是 Docker Desktop 還沒完全啟動，或是 WSL 2 沒有正常運作，可以先確認工作列鯨魚圖示是否已經停止轉圈。
+這個過程正好把前面講的架構走一遍。Client 發出指令，Daemon 在本機找不到 Image，就去 Docker Hub 下載，下載完建立容器執行，容器印出一段訊息後自動結束。
 
-預期結果：終端機會印出一段「Hello from Docker!」開頭的文字，說明這則訊息是從一個容器裡面印出來的，看到這段文字，就代表我們的 Docker 環境已經可以正常使用了。
+看到「Hello from Docker!」開頭的文字，就代表 Client、Daemon、Registry 三個環節都串起來了。
+
+如果出現連線錯誤，通常是 Docker Desktop 還沒完全啟動，回去確認一下 Engine running。
 -->
 
 ---
@@ -679,58 +649,20 @@ docker run hello-world
 </div>
 
 <!--
-這張是實際跑出來的畫面，我們一行一行對照第二部分講的架構。
+這是實際跑出來的畫面，我們對照右邊的三個角色來看。
 
-最上面 Docker version 29.7.2，這是 Docker Engine 的版本，跟 Docker Desktop 的 4.86.0 是兩個不同的版本號，不要搞混。
+最上面的 Docker version 29.7.2 是 Docker Engine 的版本，跟 Docker Desktop 的 4.86.0 是兩個不同的版本號，不要搞混。
 
-接下來 Unable to find image 'hello-world:latest' locally，這行是關鍵：Daemon 先在本機找，找不到。
+接著這行 Unable to find image locally 是關鍵，代表 Daemon 先在本機找，沒找到。於是下一行 Pulling from library/hello-world，它去 Docker Hub 把 Image 拉下來。拉完之後，Daemon 建立容器執行，印出 Hello from Docker!。
 
-於是下一行 Pulling from library/hello-world，它去 Docker Hub 這個 Registry 把 Image 拉下來，看到 Pull complete、Download complete，代表拉取成功。
-
-拉完之後 Daemon 建立容器並執行，容器印出 Hello from Docker! 這段文字，然後自動結束。
-
-中間那段 To generate this message, Docker took the following steps 講的正是這四個步驟，官方直接把架構寫在輸出裡，是很好的複習材料。
-
-⚠️ 易錯點：如果出現 error during connect 或 cannot connect to the Docker daemon，代表 Docker Desktop 還沒完全啟動，回去看主畫面左下角是不是 Engine running。
+如果看到 cannot connect to the Docker daemon，代表 Docker Desktop 還沒啟動完成。
 -->
 
 ---
 layout: default
 ---
 
-# 練習 1：TaskBoard 該用 VM 還是 Container？
-### 任務說明
-
-TaskBoard 團隊有三位開發者，每個人電腦上的環境都不太一樣：
-
-- A 的電腦裝了 **MySQL 5.7**（舊專案在用），TaskBoard 需要 **MySQL 8.4**
-- B 的 JDK 是 **17**，TaskBoard 的 Gradle 設定要求 **JDK 21**
-- C 的 Node 是 **18**，Angular 專案要 **Node 20** 才裝得起 dependency
-
-請回答：要讓三個人都能跑起同一套 TaskBoard，用 Container 還是 VM 比較合適？理由是什麼？
-
----
-layout: default
----
-
-# 練習 1：TaskBoard 該用 VM 還是 Container？
-### 解題提示
-
-1. 先想清楚：三個人缺的是「不同作業系統」，還是「同一個 OS 上的不同版本執行環境」？
-2. 回顧「VM vs Container 核心差異」那張表格，特別留意「資源開銷」與「啟動速度」
-3. 如果用 VM：每個人要為 MySQL、API、前端各開一台裝著完整 OS 的虛擬機，一台幾 GB 記憶體，開機要幾分鐘
-4. 如果用 Container：`mysql:8.4`、`gradle:8.10-jdk21`、`node:20-alpine` 各自帶著自己需要的版本，共用主機核心，秒級啟動
-5. 想想「隔離性」這個特性：A 電腦上原本的 MySQL 5.7 會不會被容器裡的 8.4 影響？
-
-<div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>答案方向：</b> 用 Container。三個人缺的只是「執行環境版本」，不是不同的作業系統，Container 的隔離已經足夠，而且開發機不必付出跑三套 OS 的代價。
-</div>
-
----
-layout: default
----
-
-# 練習 2：走一遍 TaskBoard 資料庫的啟動流程
+# 練習：走一遍 TaskBoard 資料庫的啟動流程
 ### 任務說明
 
 假設我們在一台剛裝好 Docker Desktop、從來沒下載過任何 Image 的電腦上，執行：
@@ -746,11 +678,23 @@ docker run -d --name taskboard-db -p 3307:3306 \
 2. 說明 `-p 3307:3306` 中兩個 port 分別屬於誰
 3. 如果同事把指令改成 `-p 3306:3306`，而他電腦本來就裝了 MySQL，會發生什麼事？
 
+<!--
+接下來是本章的練習。
+
+假設我們在一台剛裝好 Docker、從來沒下載過任何 Image 的電腦上，執行這段建立 TaskBoard 資料庫的指令。請寫出從指令送出到容器啟動的完整步驟，標出 Client、Daemon、Registry 各負責哪一段。
+
+第三小題請大家想一想：如果同事把 port 改成 3306，而他的電腦本來就裝了 MySQL，會發生什麼事？
+
+我們先暫停一下，自己動手試試看。
+
+【講師】給大家三到五分鐘，鼓勵實際執行指令，這個 taskboard-db 容器後面幾章都會用到。
+-->
+
 ---
 layout: default
 ---
 
-# 練習 2：走一遍 TaskBoard 資料庫的啟動流程
+# 練習：走一遍 TaskBoard 資料庫的啟動流程
 ### 解題提示
 
 1. 回顧「指令怎麼流動：以 docker run 為例」那五個步驟
@@ -764,11 +708,13 @@ layout: default
 </div>
 
 <!--
-這兩題練習題的講稿：第一題重點在幫大家把 VM 和 Container 的差異從表格轉換成實際判斷能力，而且情境就是大家真的會遇到的——同一個團隊裡每個人環境版本都不一樣。第二題則是把 Docker 架構的運作流程用 TaskBoard 的資料庫再走一次，確保大家不只是背名詞，而是真的理解 Client、Daemon、Registry 怎麼合作。
+我們來看解題的關鍵。
 
-第二題的第三小題是刻意設計的，port 衝突是新手最常撞到的錯誤之一，先在紙上想過一次，實際遇到才不會慌。
+因為是全新安裝，本機一定沒有 `mysql:8.4`，所以流程會多一段下載。Client 把指令交給 Daemon，Daemon 找不到 Image，就向 Registry 下載，下載完才建立並啟動容器。
 
-⚠️ 提醒同學，練習的時候不用急著看提示，先自己想過一輪，卡住了再對照提示頁，這樣印象會比較深刻。另外第二題請真的動手執行，因為這個 taskboard-db 容器我們後面幾章都還會用到。
+port 映射的部分，冒號左邊的 3307 是主機的 port，右邊的 3306 是容器裡的 port。
+
+回到第三小題。主機的 3306 已經被本機的 MySQL 佔走了，Docker 再去綁同一個 port，容器就會啟動失敗，錯誤訊息會出現 `port is already allocated`。容器裡面用什麼 port 沒關係，但主機上的 port 一次只能給一個程式使用。
 -->
 
 ---
@@ -805,11 +751,13 @@ layout: default
 </div>
 
 <!--
-今天這一章我們從「為什麼需要容器化」出發，比較了 VM 跟 Container 的差異，接著拆解了 Docker 的三大元件 Client、Daemon、Registry，最後動手把 Docker Desktop 裝起來，並且用 hello-world 驗證安裝成功。
+我們來回顧一下這一章。
 
-如果今天只能記住一件事，那就是：Container 讓我們把應用程式跟它需要的環境打包在一起，帶到哪裡都能穩定運行，這就是 Docker 最核心的價值。
+第一，容器化解決的是環境不一致的問題，Container 自己帶著需要的環境。第二，VM 帶完整作業系統，Container 共用主機核心，所以更輕量、啟動更快。第三，Docker 由 Client、Daemon、Registry 三個角色組成。第四，`docker run` 會先找本機的 Image，沒有才去 Registry 下載。最後，我們用 hello-world 驗證了安裝。
 
-下一章我們會更深入認識 Image（映像檔）的管理，包括怎麼下載、建立、還有怎麼管理版本，敬請期待。
+如果只記得一件事，那就是：Container 讓應用程式帶著環境一起走，到哪裡都能穩定運行。
+
+下一章，我們會深入 Image 的管理，學習下載、刪除和版本標籤。
 -->
 
 ---
@@ -821,7 +769,9 @@ layout: end
 有任何問題嗎？
 
 <!--
-現在開放 Q&A 時間。
+這一章就到這裡。我們從容器化的動機出發，一路走到親手把 Docker 裝起來、跑起第一個資料庫容器。
 
-大家對今天的容器化概念、VM 與 Container 的差異，或是 Docker 架構、安裝流程，有沒有什麼疑問？都歡迎提出來討論。
+接下來，記得讓 taskboard-db 這個容器留著，後面幾章都會繼續用到它。我們下一章見。
+
+【講師】開放 Q&A，可以引導大家回想 VM 和 Container 的差異、Docker 架構或安裝過程的問題。
 -->

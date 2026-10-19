@@ -42,11 +42,11 @@ style: |
 </div>
 
 <!--
-大家好，歡迎來到第二章：映像檔管理。
+歡迎來到第二章，映像檔管理。
 
-上一章我們認識了 Docker 的基本概念，知道 Container（容器）是隔離的執行環境。這一章我們要更深入地了解，這些 Container 到底是「用什麼做出來的」——答案就是 Image（映像檔）。
+上一章我們用一行 `docker run` 跑起了 TaskBoard 的資料庫。那個容器到底是用什麼做出來的？答案就是 Image。
 
-學完這一章，我們會知道 Image 是怎麼組成的、怎麼從 Docker Hub 拉取和推送 Image，以及 tag（標籤）命名有什麼慣例。這些是我們每天寫 Docker 指令都會用到的基本功。
+這一章我們會搞懂 Image 是怎麼組成的，學會從 Registry 下載和上傳 Image，還有版本標籤該怎麼命名。學完之後，我們就能把自己的 Image 貼上版本號，分享給整個團隊。
 -->
 
 ---
@@ -66,11 +66,7 @@ layout: default
 </div>
 
 <!--
-今天的內容分成三大部分。
-
-第一部分先建立 Image 的心智模型，搞懂什麼是 Layer（層）；第二部分帶大家實際操作最常用的四個指令；第三部分介紹 Docker Hub 怎麼用，還有 tag 該怎麼命名才不會搞混版本。
-
-最後會有兩題練習，讓大家把指令實際打一遍，印象才會深。
+這一章分成三部分。先建立 Image 的觀念，搞懂什麼是 Layer。接著實際操作 pull、push、images、rmi 這幾個最常用的指令。最後看 Docker Hub 怎麼用，以及 Tag 該怎麼命名才不會搞混版本。章節最後有一題練習，讓大家把指令實際打一遍。
 -->
 
 ---
@@ -81,9 +77,7 @@ class: flex flex-col justify-center items-center text-center
 # Image 概念與 Layer 結構
 
 <!--
-我們先從最基礎的問題開始：Image 到底是什麼？為什麼它要分層？
-
-這部分建立好觀念之後，後面學指令會輕鬆很多，因為每個指令其實都是在操作「Image 這個東西」。
+先從最基礎的問題開始：Image 到底是什麼？它為什麼要一層一層疊起來？
 -->
 
 ---
@@ -100,13 +94,13 @@ class: flex flex-col justify-center items-center text-center
 </div>
 
 <!--
-大家可以想像我們自己家裡的便當店，或是連鎖速食店好了。
+想像一家連鎖餐廳，如果每家分店都各自發揮、沒有標準食譜，客人吃到的口味就會參差不齊。
 
-如果每一分店都各自發揮、沒有標準食譜，那消費者吃到的口味就會參差不齊。Docker Image 解決的就是軟體世界裡類似的問題：不管在誰的電腦上、在哪台伺服器上執行，只要用同一個 Image，跑出來的環境就會一模一樣。
+Docker Image 解決的就是類似的問題。「Image 是一個標準化的封裝」，裡面有執行 Container 需要的所有檔案、程式庫和設定。
 
-這裡的易錯點是：Image 跟 Container 常常被搞混。⚠️ 大家要記得，Image 是「靜態」的模板，不會自己動；Container 是拿這個模板「啟動」之後的執行實例，是動態的、正在跑的東西。
+用食譜來比喻，Image 就是那份標準食譜，Container 是照著食譜做出來、端上桌的那盤菜。同一份食譜可以同時做出很多盤菜，同一個 Image 也可以同時啟動很多個 Container。
 
-預期大家聽完這頁，能夠一句話說出 Image 跟 Container 的差別。
+很多人會把這兩個搞混。記住一句話就好：Image 是靜態的模板，Container 是跑起來的實例。
 -->
 
 ---
@@ -127,17 +121,13 @@ class: flex flex-col justify-center items-center text-center
 </div>
 
 <!--
-這頁在講 Image 為什麼要分層，這其實是 Docker 設計裡很聰明的一點。
+Image 有一個很聰明的設計，叫做 Layer，分層。
 
-生活比喻的話，大家可以想成蓋房子：地基打好之後，我們不會把地基敲掉重打，而是往上疊加新的樓層。Docker Image 也是一樣，每一層都是疊加上去的變更，底下的 Layer 不會被修改。
+「每一層代表一組檔案系統的變更」。以 TaskBoard 的後端為例，最底層是 Alpine Linux，往上是 JRE 21，再往上是相依函式庫，最上面才是我們自己打包的 jar 檔。
 
-這樣設計的好處是：如果兩個 Image 都是「Python 基礎環境」，那這一層只要下載一次，兩個 Image 可以共用，不用重複佔用硬碟空間，下載速度也會變快。
+Image 建立之後就不能修改，只能在上面疊加新的一層。很多人以為改檔案就是改掉原本那一層，其實 Docker 是建了一個新的 Layer 疊上去，底下完全不動。
 
-⚠️ 易錯點：很多同學會以為修改 Image 裡的檔案就是「改掉原本的 Layer」，但其實 Docker 是幫我們建立一個新的 Layer 疊上去，原本的 Layer 完全不會被動到。這也是為什麼 Image 是「不可變（immutable）」的。
-
-用 TaskBoard 來對照就很有感：我們每天改 Controller 改個十幾次，但底層的 Alpine 跟 JRE 21 從頭到尾沒變，所以每次重新建 Image，真正需要重做的只有最上面那層 jar，這就是為什麼容器化的專案 rebuild 可以那麼快。
-
-預期結果：大家聽完能理解，為什麼下載新 Image 時，有時候會看到「有幾層很快就下載完」——那是因為本機已經有一樣的 Layer 了。
+這樣設計有兩個好處。第一，相同的底層可以被很多 Image 共用，不用重複下載。第二，我們每天改 Controller 改十幾次，但底層的 Alpine 和 JRE 從頭到尾沒變，每次重建只需要重做最上面那層 jar，所以會很快。
 -->
 
 ---
@@ -155,13 +145,13 @@ class: flex flex-col justify-center items-center text-center
 | 個人 / 組織 Image | 開發者自己 push 上去的 Image |
 
 <!--
-這頁把「Image」跟「Registry」的關係講清楚，讓同學知道 Image 平常放在哪裡、我們去哪裡找。
+知道 Image 是什麼之後，下一個問題是：Image 平常放在哪裡？
 
-生活比喻的話，Registry 就像是「食譜分享網站」，Docker Hub 就是目前全世界最大的那個食譜網站，上面有各種現成的食譜可以直接拿來用，也可以把自己研發的食譜分享上去。
+答案是 Registry，「儲存和分發 Image 的服務」。Docker Hub 是預設的公開 Registry，就像全世界最大的食譜分享網站，可以直接拿現成的食譜，也可以把自己的分享上去。
 
-業界實務上，我們幾乎不會每個 Image 都自己從零開始寫，而是先去 Docker Hub 找官方 Image 當基礎，這樣比較安全也比較省力，因為官方 Image 通常會定期更新修補安全漏洞。
+表格裡三種來源，挑重點看。在實際專案裡，我們很少從零開始做 Image，通常會先找官方 Image 當基礎，因為官方會定期修補安全漏洞，比較可靠。
 
-⚠️ 易錯點：同學常常以為只有 Docker Hub 這一個 Registry，但其實企業內部也常常會架設「私有 Registry」，例如自己公司內網的 registry-host。這點我們在後面 push 的章節會看到範例。
+另外要注意，Registry 不是只有 Docker Hub。很多公司會在內網架設自己的私有 Registry，等一下 push 的範例就會看到。
 -->
 
 ---
@@ -172,9 +162,7 @@ class: flex flex-col justify-center items-center text-center
 # 常用指令：pull / push / images / rmi
 
 <!--
-觀念建立好了，接下來我們就實際動手，把 Image 相關最常用的四個指令走過一遍：pull、push、images、rmi。
-
-這四個指令幾乎是我們每天都會用到的基本操作，大家一定要練到反射動作。
+觀念建立好了，接下來我們實際動手，把最常用的四個 Image 指令走一遍。
 -->
 
 ---
@@ -191,11 +179,13 @@ class: flex flex-col justify-center items-center text-center
 | `docker tag` | 幫 Image 新增一個標籤（常搭配 push 使用） |
 
 <!--
-這頁先給大家一張總表，等一下每個指令都會拆開來看實際範例。
+先看一張總表，等一下每個指令都會拆開來看範例。
 
-大家可以先注意到，這幾個指令的動詞都很直覺：pull 是「拉」下來、push 是「推」上去、images 是「列出」、rmi 是 remove image 的縮寫。
+這幾個指令的名字都很直覺。pull 是從 Registry 拉下來，push 是推上去，images 是列出本機的 Image，rmi 是 remove image 的縮寫。
 
-⚠️ 易錯點：`docker rmi` 不是 `docker rm`，`rm` 是刪除 Container，`rmi` 才是刪除 Image，兩個字很像但操作對象完全不同，很多新手會搞混。
+這裡有一個很多新手會搞混的地方。`docker rmi` 刪的是 Image，`docker rm` 刪的是 Container，兩個字很像，操作對象完全不同。
+
+最後一行的 `docker tag` 是幫 Image 新增標籤，通常會跟 push 搭配使用。
 -->
 
 ---
@@ -220,15 +210,13 @@ docker pull registry-host:5000/myadmin/taskboard-api:1.0.0
 執行後 Docker 會逐層（layer）顯示下載進度，如果本機已經有相同的 Layer，會直接顯示 `Already exists`，不會重複下載。
 
 <!--
-這頁帶大家實際操作 pull 指令，順便把 TaskBoard 後面幾章要用的基礎 Image 先準備好。
+這一頁我們用 pull，把 TaskBoard 之後會用到的基礎 Image 先抓下來。
 
-先看第一個範例，`docker pull mysql`，沒有指定 tag，Docker 預設會抓 `latest` 這個標籤。下面才是我們專案真正的做法：明確寫出 `mysql:8.4`。這在正式環境非常重要，因為 latest 會一直變動，哪天 MySQL 出了 9.0，我們的 latest 就悄悄升上去了，Spring Boot 的 driver 相容性可能直接出問題。
+先看第一行，`docker pull mysql` 沒有指定 tag，Docker 會預設抓 latest。很多人以為 latest 代表最新的穩定版，其實它只是一個標籤名稱，維護者想指到哪個版本都可以。哪天 MySQL 出了新的大版本，latest 就會悄悄換掉，Spring Boot 的連線可能直接出問題。所以專案裡我們一律鎖定版本，像下面寫的 `mysql:8.4`。
 
-⚠️ 易錯點：很多同學誤以為 `latest` 代表「最新穩定版」，但 latest 只是「一個標籤名稱」，維護者想指到哪個版本都可以。專案一律鎖版本。
+再看 `eclipse-temurin:21-jre-alpine` 這個名字。21 是 Java 版本，jre 表示只有執行環境，alpine 是很精簡的 Linux。選 jre 加 alpine，Image 可以從四百多 MB 降到一百多 MB。
 
-另外注意 `eclipse-temurin:21-jre-alpine` 這個名字：temurin 是 Eclipse 基金會維護的 OpenJDK 發行版，`21` 是 Java 版本，`jre` 表示只有執行環境沒有編譯器，`alpine` 是很精簡的 Linux 發行版。光是選 jre 不選 jdk、選 alpine 不選一般版，Image 就可以從四百多 MB 降到一百多 MB。
-
-預期結果：執行完用 `docker images`，應該可以看到這幾個 Image 都躺在本機了。
+執行後，Docker 會一層一層顯示下載進度。本機已經有的 Layer，會直接顯示 Already exists。
 -->
 
 ---
@@ -256,15 +244,15 @@ docker rmi taskboard-web:1.0.0
 ```
 
 <!--
-這頁把 images 跟 rmi 放在一起講，因為它們是一組「查看 → 清理」的操作。
+pull 下來之後，我們用 images 看本機有什麼，用 rmi 清掉不要的。
 
-大家看這份清單，`taskboard-api` 的 `1.0.0` 跟 `latest` 兩列，IMAGE ID 都是 8f3c1a92be04，完全一樣——代表它們其實是同一份 Image，只是貼了兩張不同的標籤紙，就像同一道菜可以同時叫「今日特餐」跟「主廚推薦」，硬碟上只佔一份空間。
+看這份清單，`taskboard-api` 的 1.0.0 和 latest 兩列，IMAGE ID 完全一樣。代表它們是同一份 Image，只是貼了兩張不同的標籤，硬碟上只佔一份空間。
 
-也順便看一下大小：`taskboard-web` 只有 52MB，因為 Angular 打包出來就是一堆靜態檔案加上精簡版 nginx；`taskboard-api` 198MB，多出來的是 JRE；`mysql` 最肥，600 多 MB。這個大小差異在第四章講 multi-stage build 的時候會更有感覺。
+也看一下大小。`taskboard-web` 只有 52MB，因為裡面只有靜態檔案加上精簡版的 nginx。`mysql` 最大，六百多 MB。
 
-⚠️ 易錯點：如果這個 Image 目前有 Container 正在使用（不管是執行中還是停止狀態），直接 `docker rmi` 會刪除失敗，要先把相關的 Container 刪掉，或加上 `-f` 強制刪除（但要小心使用）。
+刪除的時候，可以用 Image ID，也可以用名稱加 tag。要注意，如果有 Container 還在使用這個 Image，就算是停止狀態，rmi 也會失敗，要先把 Container 刪掉。
 
-預期結果：刪除成功後，再執行一次 `docker images`，剛剛那個 Image 就不會出現在清單裡了。
+刪除成功後，再執行一次 `docker images`，那個 Image 就不會出現了。
 -->
 
 ---
@@ -284,11 +272,13 @@ docker rmi taskboard-web:1.0.0
 </div>
 
 <!--
-這頁講 push 指令的語法結構，實際範例下一頁馬上就會看到。
+接下來看 push，它跟 pull 剛好相反，是把本機的 Image 上傳到 Registry，讓其他人或伺服器直接拉下來用。
 
-push 就是跟 pull 反過來，把我們本機做好的 Image 上傳到 Registry，讓其他人或其他伺服器可以直接 pull 下來用，不用再重新建置一次。
+表格裡最常用的是 `-a`，一次推送同一個 Image 的所有標籤。
 
-⚠️ 易錯點：push 之前一定要先登入，沒登入會直接被拒絕，錯誤訊息通常會提示 unauthorized。另外要注意，Docker daemon 預設會「同時」推送 Image 的多個 Layer，不是一層一層乖乖排隊，所以進度條看起來會同時跳動好幾條。
+這頁下面的提醒很重要。push 之前一定要先 `docker login`，沒登入會直接被拒絕，錯誤訊息通常是 unauthorized。另外，Image 名稱前面要帶上 Registry 的位置，Docker 才知道要推去哪裡。
+
+推送的時候，Docker 會同時上傳好幾個 Layer，所以進度條會一起跳動，這是正常的。
 -->
 
 ---
@@ -312,15 +302,15 @@ docker push -a registry-host:5000/myadmin/taskboard-api
 ```
 
 <!--
-這頁走一次完整的 push 流程，這也是實際工作上最常用到的組合技：tag + push。
+這一頁走一次完整的 push 流程，把 `taskboard-api` 推到公司的私有 Registry。
 
-大家可以看到，我們不會直接把本機叫 `taskboard-api:1.0.0` 的 Image push 出去，而是要先用 `docker image tag` 幫它「重新貼一張標籤」，把目標 Registry 的位置寫進去，Docker 才知道這個 Image 該送去哪裡。沒有前綴的話，Docker 預設就是往 Docker Hub 送。
+關鍵在 Step 2。我們不會直接推送 `taskboard-api:1.0.0`，而是先用 `docker image tag` 再貼一張標籤，把 Registry 的位址寫進名稱裡。沒有寫位址的話，Docker 預設就是送去 Docker Hub。
 
-實務上這幾行不會是人手動打的，而是寫在 CI 腳本裡：Gradle build 完 jar、docker build 出 Image、打上 commit 版本的 tag、push 上 registry，然後伺服器那端 pull 下來重啟。這整條線我們第八章會完整走一次。
+要注意，tag 不是改名，而是新增一張標籤。原本的名稱還在，兩個名稱指向同一個 Image ID。
 
-⚠️ 易錯點：`docker image tag` 不是「改名」，而是「新增一張標籤」，原本的 `taskboard-api:1.0.0` 還是會存在，本機會同時看到兩個名稱但指向同一個 Image ID。
+最後一行的 `-a`，會一次推送這個 repository 的所有版本。
 
-預期結果：push 成功後，到 Docker Hub 或自己架設的 Registry 網頁上，應該就能看到剛剛上傳的這個 repository 跟 tag。
+在實際專案裡，這幾行通常不是手動打的，而是寫在 CI 腳本裡，這條流程我們第八章會完整走一次。推送成功後，到 Registry 的網頁上，就能看到剛上傳的 repository 和 tag。
 -->
 
 ---
@@ -331,9 +321,7 @@ class: flex flex-col justify-center items-center text-center
 # Docker Hub 與 Tag 命名規則
 
 <!--
-第三部分我們來看 Docker Hub 這個平台本身，還有一個大家實務上一定會遇到的問題：Tag 到底該怎麼命名？
-
-命名沒有規範，團隊合作的時候會很容易搞混版本，這部分會給大家一套實用的命名慣例。
+指令會用了，接下來看兩件實務上一定會遇到的事：Docker Hub 這個平台，以及 Tag 該怎麼命名。
 -->
 
 ---
@@ -352,13 +340,13 @@ Docker Hub 提供的核心功能：
 | 搜尋與探索 | 可以直接在網站或用 `docker search` 找需要的 Image |
 
 <!--
-這頁介紹 Docker Hub 這個平台整體長什麼樣子。
+我們可以把 Docker Hub 想成 Image 界的 GitHub。GitHub 存程式碼，Docker Hub 存打包好的 Image，一樣分成公開和私人儲存庫。
 
-我們可以把 Docker Hub 想成是「Image 界的 GitHub」——GitHub 存的是程式碼，Docker Hub 存的是打包好的 Image。而且它跟 GitHub 一樣，也有公開跟私人儲存庫的區別。
+表格挑兩個重點。Repository 是存放同一個專案各個版本的地方。官方和驗證 Image 則是品質有保證的現成 Image，可以直接拿來當基礎。
 
-業界實務上，公司內部的專案通常會用私人 Repository，避免商業邏輯外流；而開源專案或工具類的 Image，通常會放在公開 Repository 讓大家自由使用。
+在實際專案裡，公司內部的專案通常放私人儲存庫，避免商業邏輯外流。開源工具類的 Image，才會放在公開儲存庫。
 
-⚠️ 易錯點：很多新手會以為 Docker Hub 上的 Image 都是安全可信的，但其實任何人都可以上傳 Image，並不是每個都是官方認證。挑選 Image 時，建議優先選「Docker Official Image」或標示為「Verified Publisher」的來源。
+這裡要提醒一下，Docker Hub 上任何人都可以上傳 Image，不是每個都可信。挑選的時候，優先選 Docker Official Image 或 Verified Publisher 的來源。
 -->
 
 ---
@@ -378,13 +366,13 @@ Docker Hub 提供的核心功能：
 | Commit / 建置編號 | `taskboard-api:git-a1b2c3d` | 精確對應到某一次程式碼版本，方便追蹤 |
 
 <!--
-這頁是整個 Tag 命名規則的重點，也是我們實際團隊合作時最容易吵架的地方，一定要花時間講清楚。
+Tag 就是貼在 Image 名稱後面的版本標記，格式是 repository 冒號 tag。
 
-生活比喻的話，如果便當店的便當都叫「今日便當」而不寫日期，我們永遠不知道自己吃到的是哪一天做的。Tag 命名也是一樣的道理，命名得越清楚，之後追查問題或回滾版本才會越輕鬆。
+想像一下，如果食譜上永遠只寫「最新版」，不寫日期，我們永遠不知道手上這份是哪一天改的。Tag 也是一樣，命名越清楚，之後追查問題或回滾版本就越輕鬆。
 
-業界實務上，比較成熟的團隊會同時打上多個 tag，例如同一個建置同時打上 `1.4.2` 跟 `git-a1b2c3d`，這樣既方便閱讀版本號，又能精確對應到程式碼的那次 commit。
+表格裡最重要的是語意化版本，例如 1.4.2，正式環境首選。比較成熟的團隊會同時打好幾個 tag，例如 1.4.2 再加上 commit 編號，既好讀，又能精確對應到某一次程式碼。
 
-⚠️ 易錯點：正式環境（production）千萬不要只依賴 `latest` 這個標籤，因為 latest 會一直被覆蓋更新，今天部署的 latest 跟明天的 latest 內容可能完全不同，容易造成「本機測試沒問題，正式環境卻爆炸」的狀況。
+最容易踩的坑是正式環境只用 latest。latest 會一直被覆蓋，今天部署的 latest 跟明天的可能完全不同，就會出現本機沒問題、正式環境卻壞掉的情況。
 -->
 
 ---
@@ -410,22 +398,22 @@ docker push -a myaccount/taskboard-api
 ```
 
 <!--
-這頁把 Tag 命名規則落地成實際會打的指令，讓大家看到「概念」跟「動手做」是怎麼串起來的。
+這一頁把 Tag 命名落地成實際的指令，看 TaskBoard 後端怎麼發布新版本。
 
-大家可以注意到，這裡示範了同一個建置同時貼上三種不同精細度的 tag：`latest`、`1.4`、`1.4.2`，這在實務上很常見，方便不同情境的使用者選擇要抓哪一個版本。比方說測試環境可以固定抓 `1.4`，自動吃到修 bug 的小版本；正式環境則鎖死 `1.4.2`，什麼都不會自己動。
+先 build 出 latest，接著同一個 Image 再貼上 1.4.2 和 1.4 兩個標籤。這樣不同環境可以各取所需。測試環境固定抓 1.4，自動吃到修 bug 的小版本。正式環境鎖死 1.4.2，什麼都不會自己變。
 
-順帶一提，這個 `1.4.2` 從哪裡來？實務上通常就是 `build.gradle` 裡面 `version = '1.4.2'` 那一行，CI 腳本讀出來直接當 tag 用，程式碼版本跟 Image 版本就永遠對得起來。
+這個 1.4.2 實務上通常來自 `build.gradle` 裡的 version 設定，CI 讀出來直接當 tag，程式碼版本和 Image 版本就永遠對得起來。
 
-⚠️ 易錯點：推送到 Docker Hub 時，Image 名稱前面一定要帶帳號或組織名稱（例如 `myaccount/taskboard-api`），不然 Docker 會預設當作要推去 Docker 官方的命名空間，直接被拒絕。
+推送到 Docker Hub 時，名稱前面一定要帶帳號，例如 `myaccount/taskboard-api`，不然會被當成要推到官方的命名空間，直接被拒絕。
 
-預期結果：推送完成後，到 Docker Hub 網站上該帳號的 Repository 頁面，應該能同時看到 `1.4.2` 和 `1.4` 兩個 tag。
+完成後，到 Docker Hub 的頁面上，就能看到這些 tag。
 -->
 
 ---
 layout: default
 ---
 
-# 練習 1：準備 TaskBoard 的基礎 Image
+# 練習：準備 TaskBoard 的基礎 Image
 ### 任務說明
 
 我們要把 TaskBoard 後面幾章需要的基礎 Image 先準備好。請完成以下操作：
@@ -437,16 +425,22 @@ layout: default
 5. 再執行一次 `docker images`，確認 `taskboard-runtime:v1` 還在，而且 IMAGE ID 跟第 2 步記下的一樣
 
 <!--
-這一題是基本功練習，檢驗大家對 pull / images / tag / rmi 四個指令的熟練度，順便把第四章要用的 runtime Image 先抓下來。
+接下來是本章的練習，我們順便把第四章要用的 runtime Image 先準備好。
 
-引導思考：大家覺得如果直接刪除 `eclipse-temurin:21-jre-alpine`，剛剛貼的 `taskboard-runtime:v1` 會不會也一起消失？想想看 Image ID 跟 tag 之間的關係。第 5 步就是要大家自己驗證這件事。
+任務是：下載 `eclipse-temurin:21-jre-alpine`，記下它的 IMAGE ID，幫它貼上新標籤 `taskboard-runtime:v1`，再刪掉原本的標籤。
+
+請大家先想一個問題：刪掉 `eclipse-temurin` 這個標籤之後，剛剛貼的 `taskboard-runtime:v1` 會不會一起消失？
+
+我們先暫停一下，自己動手試試看。
+
+【講師】給大家三到五分鐘操作，提醒第五步要比對 IMAGE ID。
 -->
 
 ---
 layout: default
 ---
 
-# 練習 1：解題提示
+# 練習：解題提示
 ### 提示說明
 
 ```bash
@@ -462,67 +456,11 @@ docker images                       # taskboard-runtime:v1 還在，ID 不變
 </div>
 
 <!--
-公布解答，順便解釋第 4 步背後的原理。
+我們來看解答。前面四個指令依序就是 pull、images、tag、rmi。
 
-⚠️ 這題最容易錯的地方，是同學會擔心「刪掉 eclipse-temurin 會不會連 taskboard-runtime:v1 也一起不見」，答案是不會。反過來說，如果最後一個 tag 也被刪掉，那份 Image 才會真的從硬碟上消失。
+回到剛才的問題，`taskboard-runtime:v1` 不會消失。因為 tag 只是貼在同一個 Image ID 上的標籤，刪掉其中一張，不會刪到底層的 Image。只要還有至少一個 tag 指著它，Image 就還在。反過來說，最後一個 tag 也被刪掉時，Image 才會真的從硬碟上消失。
 
-預期結果：最後一次 `docker images` 只會看到 `taskboard-runtime:v1`，看不到 `eclipse-temurin`，但兩者的 IMAGE ID 完全相同。
--->
-
----
-layout: default
----
-
-# 練習 2：發布 taskboard-api 到私有 Registry
-### 任務說明
-
-TaskBoard 後端修完一批 bug，要發布 `2.0.0` 版到公司內部的私有 Registry（位址 `registry-host:5000`，命名空間 `myadmin`）：
-
-1. 本機已經有一個建置好的 Image，叫做 `taskboard-api:latest`
-2. 幫它同時貼上 `2.0.0` 與 `2.0` 兩種精細度的版本標籤，並加上正確的 Registry 位置前綴
-3. 登入該 Registry
-4. 把 `2.0.0` 這個版本推送上去
-5. 想一想：測試環境的部署腳本應該固定抓哪一個 tag？正式環境呢？
-
-<!--
-這題比第一題更貼近實際工作場景，把 tag 命名規則跟 push 指令結合在一起。
-
-引導思考：如果之後要讓其他同事直接抓「最新的 2.0 系列版本」而不用記完整版本號，我們應該怎麼設計 tag？
-
-第 5 小題是這章的核心觀念：測試環境抓 `2.0`，這樣我們一發 2.0.1 的修補版，測試環境重啟就自動吃到新版；正式環境鎖 `2.0.0`，除非有人明確改版本號，否則永遠不會變。
-
-⚠️ 提醒大家，這題重點不只是「指令打得出來」，而是要想清楚 tag 該怎麼命名才符合語意化版本的精神。
--->
-
----
-layout: default
----
-
-# 練習 2：解題提示
-### 提示說明
-
-```bash
-# 貼上兩種精細度的版本標籤，並加上 registry 前綴
-docker image tag taskboard-api:latest registry-host:5000/myadmin/taskboard-api:2.0.0
-docker image tag taskboard-api:latest registry-host:5000/myadmin/taskboard-api:2.0
-
-# 登入私有 registry
-docker login registry-host:5000
-
-# 推送指定版本
-docker push registry-host:5000/myadmin/taskboard-api:2.0.0
-```
-
-<div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-gray-700 text-sm text-left">
-💡 <b>提示：</b> 想把 2.0.0 跟 2.0 一次推送完，可以改用 <code>docker push -a registry-host:5000/myadmin/taskboard-api</code>。第 5 小題：測試環境抓 <code>2.0</code>（自動吃到修補版），正式環境鎖 <code>2.0.0</code>（版本完全固定）。
-</div>
-
-<!--
-公布解答，也順便補充 `-a` 選項的用法，讓同學知道有更省力的做法。
-
-⚠️ 易錯點提醒：Image 名稱前面一定要完整帶上 `registry-host:5000/myadmin/` 這串前綴，這是 Docker 用來判斷「要推去哪個 Registry、哪個帳號底下」的依據，漏掉就會推錯地方或直接失敗。
-
-預期結果：登入成功、推送完成後，去該 Registry 的網頁介面應該能看到 `my-app` 這個 repository，底下有 `2.0.0` 這個 tag。
+所以最後一次 `docker images`，只會看到 `taskboard-runtime:v1`，而且 IMAGE ID 跟一開始記下的完全一樣。
 -->
 
 ---
@@ -557,11 +495,11 @@ docker push registry-host:5000/myadmin/taskboard-api:2.0.0
 </div>
 
 <!--
-這一章的重點回顧一下。
+我們回顧一下這一章。
 
-我們從「Image 是食譜、Container 是端出來的菜」這個比喻出發，理解了 Image 的分層設計，接著實際操作了 pull、push、images、rmi 四個最常用的指令，最後學了 Docker Hub 的功能跟 Tag 命名的實務慣例。
+第一，Image 是標準化的模板，Container 是用它啟動的實例，就像食譜和端上桌的菜。第二，Image 由一層層的 Layer 疊起來，建立後不能修改，相同的 Layer 可以共用。第三，pull、push、images、rmi 是每天都會用到的四個指令。第四，Docker Hub 是預設的 Registry，公司也可以架私有的。最後，Tag 建議用語意化版本，正式環境不要只依賴 latest。
 
-學完這一章，我們應該能夠自己把一個應用程式打包、貼上有意義的版本標籤，然後推送到 Registry 上跟團隊分享了。下一章我們會進一步認識容器操作的細節。
+學完這一章，我們已經能把 Image 貼上有意義的版本，推送到 Registry 跟團隊分享。下一章，我們會進入容器操作。
 -->
 
 ---
@@ -573,7 +511,9 @@ layout: end
 有任何問題嗎？
 
 <!--
-現在開放 Q&A 時間。
+這一章我們把 Image 從裡到外看了一遍，從分層結構，到下載、上傳和版本命名。
 
-大家對 Image 的分層結構、pull/push/images/rmi 這幾個指令，或是 Tag 命名慣例，有沒有什麼疑問？都歡迎提出來討論。
+記得剛才準備好的 `taskboard-runtime:v1`，第四章寫 Dockerfile 時還會用到。我們下一章見。
+
+【講師】開放 Q&A，可以引導大家回想 tag 和 Image ID 的關係、latest 的風險。
 -->

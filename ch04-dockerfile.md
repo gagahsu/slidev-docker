@@ -42,13 +42,13 @@ style: |
 </div>
 
 <!--
-大家好，這一章我們要來學 Dockerfile。
+歡迎來到第四章，Dockerfile。
 
-前面幾章我們學過怎麼拉取 image、怎麼操作 container，但那些 image 都是別人做好的。如果我們想做出屬於自己的 image，就要靠 Dockerfile。
+前面幾章用的 Image 都是別人做好的。如果我們想把 TaskBoard 的後端和前端，打包成自己的 Image，就要靠 Dockerfile。
 
-Dockerfile 是什麼呢？大家可以把它想成「食譜的文字版寫法」。食譜上一步一步寫著要放什麼料、怎麼處理，照著做就會得到同一道菜。Dockerfile 也是一樣，一行一行寫著要用什麼基礎環境、複製什麼檔案、跑什麼指令，docker build 照著做，就會產出同一個 image。
+我們可以把 Dockerfile 想成一份寫下來的食譜，`docker build` 照著做，任何人在任何地方都會做出同一個 Image。
 
-今天這堂課會涵蓋三個重點：Dockerfile 常用指令、docker build 跟 layer cache 的觀念、還有 multi-stage build 跟 .dockerignore。準備好我們就開始吧。
+學完這一章，我們就能為 TaskBoard 前後端各寫一份精簡又安全的 Dockerfile。
 -->
 
 ---
@@ -68,15 +68,7 @@ layout: default
 </div>
 
 <!--
-這是我們今天的路線圖。
-
-第一部分先搞懂 Dockerfile 裡最常用的幾個指令，這些是寫任何 Dockerfile 都會用到的基本功。
-
-第二部分講 docker build 怎麼運作，還有一個很重要的觀念叫 layer cache，會直接影響我們 build 的速度。
-
-第三部分講進階一點的技巧，multi-stage build 可以讓映像檔變小很多，還有 .dockerignore 可以避免把不必要的檔案打包進去。
-
-最後留兩題練習題，讓大家動手寫寫看。
+這一章分成三部分。第一部分是 Dockerfile 最常用的幾個指令。第二部分看 `docker build` 怎麼運作，以及會直接影響 build 速度的 Layer Cache。第三部分是兩個進階技巧，Multi-stage Build 讓 Image 變小，.dockerignore 避免把不需要的檔案送進去。最後有兩題練習。
 -->
 
 ---
@@ -87,9 +79,7 @@ class: flex flex-col justify-center items-center text-center
 # Dockerfile 常用指令
 
 <!--
-我們先進入第一部分，來看 Dockerfile 裡最常見的幾個指令。
-
-這幾個指令幾乎每份 Dockerfile 都會用到，大家一定要熟悉它們的語法跟用途。
+我們先從第一部分開始，看看 Dockerfile 裡最常見的幾個指令，它們幾乎每份 Dockerfile 都會用到。
 -->
 
 ---
@@ -121,13 +111,15 @@ docker build -t taskboard-api:1.0.0 .   # 再包成 image
 </div>
 
 <!--
-先給大家看一份最容易理解的 Dockerfile，等一下我們會一行一行拆解。
+「Dockerfile 是食譜的文字版」，一行一行寫著怎麼組出一個 Image。
 
-這份做的事情很單純：用只有 JRE 21 的輕量 image 當基礎，設定工作目錄到 /app，把 Gradle 打包好的 jar 複製進去改名成 app.jar，宣告會用到 8080 port，最後指定容器啟動時執行 java -jar。
+先看最簡單的版本，把 Gradle 打包好的 jar 放進 Image 跑起來。FROM 選了只有 JRE 21 的輕量 Image 當基礎，COPY 把 jar 複製進去，CMD 指定容器啟動時執行 `java -jar`。
 
-大家注意這個流程：先在本機 `./gradlew bootJar` 打包，再 docker build。這是最好懂的做法，但有個明顯缺點——它假設「每個要 build image 的人電腦上都裝好 JDK 21 跟 Gradle」。CI 伺服器上不見得有，同事的環境也不見得對。這個問題我們第三部分用 multi-stage build 解決，讓 Gradle 也跑在容器裡。
+下面兩行是使用方式。先在本機用 Gradle 打包出 jar，再用 `docker build` 包成 Image。
 
-⚠️ 大家要注意，檔名如果不是叫 Dockerfile，docker build 預設是找不到的，要用 -f 參數手動指定路徑。實務上一個 repo 有多個服務時，常會看到 `Dockerfile.api`、`Dockerfile.web` 這種命名。
+這個做法最好懂，但有一個缺點。它假設每個要 build 的人，電腦上都裝好 JDK 21 和 Gradle。CI 伺服器不一定有，同事的版本也不一定對。這個問題，我們第三部分用 Multi-stage Build 解決。
+
+另外，檔名預設就叫 Dockerfile，沒有副檔名。用其他檔名的話，要用 `-f` 指定。
 -->
 
 ---
@@ -143,6 +135,18 @@ docker build -t taskboard-api:1.0.0 .   # 再包成 image
 | `ENTRYPOINT` | 把容器設定成像一個可執行檔一樣運作 |
 | `EXPOSE` | 宣告容器會用到的網路埠（僅作說明用） |
 | `ENV` | 設定環境變數，build 跟 run 階段都會生效 |
+
+<!--
+這張表整理了七個最常用的指令，我們挑重點看。
+
+FROM 指定基礎 Image，是每份 Dockerfile 的第一行。COPY 把檔案從我們的電腦複製進 Image。RUN 是在 build 的過程中執行指令，例如安裝套件。
+
+CMD 和 ENTRYPOINT 都跟容器啟動時要執行什麼有關，它們的差別等一下會專門講。
+
+要特別注意 EXPOSE，它只是說明容器會用到哪個 port，並不會真的對外開放。真正開放 port，還是要靠 `docker run` 的 `-p`。
+
+ENV 則是設定環境變數，build 和容器執行時都會生效。
+-->
 
 ---
 
@@ -168,15 +172,15 @@ CMD ["--server.port=8080"]
 </div>
 
 <!--
-這份範例把 ENV、RUN、ENTRYPOINT、CMD 都放進來，讓大家看看它們怎麼搭配。
+這一頁把七個指令放在一起，寫一份比較完整的 `taskboard-api` Dockerfile。
 
-ENV APP_HOME=/app 設定環境變數，後面 WORKDIR 直接用 $APP_HOME。第二個 ENV 更實用：`SPRING_PROFILES_ACTIVE=prod` 等於在 image 裡預設啟用 prod profile，這樣容器一跑起來就會讀 application-prod.yml。而且因為它只是「預設值」，我們 docker run 的時候加一個 `-e SPRING_PROFILES_ACTIVE=dev` 就能蓋掉，同一個 image 兩種環境都能用。
+先看第二個 ENV，`SPRING_PROFILES_ACTIVE=prod`。它讓 Image 預設啟用 prod 的設定檔。因為只是預設值，`docker run` 時加 `-e` 就能蓋掉，同一個 Image 可以用在不同環境。
 
-那個 RUN addgroup / adduser 加上 USER app 是資安上的好習慣：容器裡的行程預設是用 root 跑的，萬一應用程式被攻破，攻擊者在容器內就是 root。建一個沒有特權的使用者來跑 java，風險小很多。這在正式環境的 code review 幾乎一定會被要求。
+再看 RUN 建立使用者，加上後面的 USER app。容器裡的程式預設是用 root 執行的，萬一應用程式被攻破，攻擊者在容器裡就是 root。改用沒有特權的使用者執行 java，風險會小很多，正式環境幾乎一定會要求這樣做。
 
-ENTRYPOINT 加 CMD 的組合，意思是「這個容器就是拿來跑這支 jar 的（ENTRYPOINT 固定），但啟動參數可以換（CMD 可覆蓋）」。所以 `docker run taskboard-api:1.0.0 --server.port=9090` 就會用 9090 起服務，Spring Boot 會自動吃這個命令列參數。
+最後是 ENTRYPOINT 加 CMD 的組合。意思是這個容器固定用來跑這支 jar，但啟動參數可以換。所以 run 的時候在後面加 `--server.port=9090`，服務就會改用 9090 啟動。
 
-⚠️ 版本注意：ENV 一律寫成 KEY=VALUE 的等號形式，舊式沒有等號的寫法官方已列為過時。
+另外，ENV 一律寫成有等號的形式，沒有等號的舊寫法官方已經不建議使用。
 -->
 
 ---
@@ -193,13 +197,15 @@ ENTRYPOINT 加 CMD 的組合，意思是「這個容器就是拿來跑這支 jar
 | `ENTRYPOINT` 用殼層式（無中括號） | 會忽略 `CMD` 與 `docker run` 傳入的任何參數 |
 
 <!--
-這頁是很多人剛學 Dockerfile 時最容易搞混的地方，我們用便當盒來比喻一下。
+這一頁是很多人剛學 Dockerfile 時最容易搞混的地方。
 
-ENTRYPOINT 就像便當盒本身——不管你怎麼換菜色，這個盒子的用途不會變。CMD 則像是預設配好的菜色，你可以在點餐的時候臨時換掉。
+「ENTRYPOINT 決定容器是什麼，CMD 決定容器預設帶什麼參數執行。」
 
-所以如果只有 CMD，docker run 後面加的參數會整個「取代」CMD。但如果同時有 ENTRYPOINT 跟 CMD，docker run 後面加的參數只會取代 CMD 那部分，ENTRYPOINT 本身是不會被換掉的。
+用食譜來比喻，ENTRYPOINT 是菜名，例如「炒飯」，這道菜做什麼是固定的。CMD 是預設的配料，例如「加蛋」，客人點餐時可以臨時換成加肉。
 
-⚠️ 易錯點：ENTRYPOINT 如果寫成殼層式，也就是沒有中括號的那種寫法，官方文件明確說它會忽略 CMD 跟執行時傳入的參數，這跟外層式（中括號）行為完全不同，寫的時候一定要留意用哪一種形式。
+拉回技術。如果只有 CMD，`docker run` 後面加的參數會整個取代 CMD。如果同時有 ENTRYPOINT 和 CMD，後面加的參數只會取代 CMD，ENTRYPOINT 不會被換掉。
+
+最後一列要特別小心。ENTRYPOINT 如果沒有用中括號，寫成殼層式，它會忽略 CMD 和 run 時傳入的參數，行為完全不同。
 -->
 
 ---
@@ -210,7 +216,7 @@ class: flex flex-col justify-center items-center text-center
 # docker build 與 Layer Cache
 
 <!--
-接下來進入第二部分，來看看 docker build 到底在背後做了什麼事，還有一個對建構效率影響很大的觀念：layer cache（層快取）。
+指令會寫了，接下來看第二部分：`docker build` 背後做了什麼，以及會直接影響 build 速度的 Layer Cache。
 -->
 
 ---
@@ -232,11 +238,15 @@ docker build -f Dockerfile.web -t taskboard-web:1.0.0 ./taskboard-web
 </div>
 
 <!--
-docker build 這個指令做的事情，就是把我們寫好的 Dockerfile 一行一行讀進去執行，每執行完一行產生一個 layer，這些 layer 疊起來就是最終的 image。
+「docker build 會把 Dockerfile 逐行讀進去，每一行變成一個 layer」，疊起來就是最終的 Image。
 
-指令裡的 -t taskboard-api:1.0.0 是幫 image 取名字加版本號，最後那個點代表「建構上下文」，也就是 Docker 會把當前目錄的檔案送給建構程序使用。⚠️ 這個點很重要：如果我們的 jar 在 build/libs/ 底下，而執行 build 的位置在專案外面，Dockerfile 裡的 COPY 就會找不到檔案，因為那個檔案根本沒被送進上下文。
+先看第一行。`-t` 幫 Image 取名字加版本，最後那個點代表建構上下文，也就是 Docker 會把目前目錄的檔案送給建構程序使用。
 
-⚠️ 版本注意：現在的 Docker（23.0 以後）預設就是用 BuildKit 這個新引擎在跑 build，以前舊版要手動加環境變數 DOCKER_BUILDKIT=1 才會啟用，現在不用了，是預設行為。BuildKit 對快取的處理更聰明，也支援更多進階功能。
+這個點很重要。如果我們在錯的目錄執行 build，jar 檔根本沒被送進上下文，Dockerfile 裡的 COPY 就會找不到檔案。
+
+第二行示範用 `-f` 指定不同檔名的 Dockerfile，一個 repo 放多個服務時很常見。
+
+另外，Docker 23.0 之後，build 預設使用 BuildKit 引擎，不用再手動開啟。它的速度和快取處理都比舊版好。
 -->
 
 ---
@@ -252,6 +262,16 @@ docker build 這個指令做的事情，就是把我們寫好的 Dockerfile 一�
 | Cache 失效 | 該行或前面任何一行有變動，這行以後全部重新執行 |
 | 由上而下比對 | Docker 由 Dockerfile 第一行開始逐行比對，一旦某行失效，後面全部跟著失效 |
 | RUN 指令拆分 | `apt-get update` 與 `apt-get install` 分開寫會造成過期套件問題 |
+
+<!--
+「Layer cache 就像料理時已經切好的菜」，只要食材沒變，下次做菜就不用重新切，直接拿來用。
+
+拉回技術。Dockerfile 每一行執行後的結果，就是一個 layer。重新 build 時，如果這一行和它用到的檔案都沒變，Docker 會直接重用舊的 layer，這叫快取命中。
+
+最關鍵的是第四列，由上而下比對。只要某一行失效，它後面的每一行都會跟著重新執行，不管後面那些行本身有沒有變。
+
+最後一列是個隱蔽的坑。`apt-get update` 和 `apt-get install` 要寫在同一條 RUN 裡。分開寫的話，update 那層會被快取住，之後可能悄悄裝到舊版的套件，而且 build 不會報錯。
+-->
 
 ---
 
@@ -275,15 +295,15 @@ RUN ./gradlew bootJar --no-daemon
 </div>
 
 <!--
-這頁是整章對大家日常工作影響最大的一頁。
+這一頁是整章對日常工作影響最大的一頁。
 
-先看錯誤示範。`COPY . .` 把整個專案複製進去，包含 src 底下所有 Java 檔。結果就是我們只要改一行 Controller，這層的內容就變了，快取失效，後面的 gradlew 整條重跑——重新解析 build.gradle、重新從 Maven Central 下載 Spring Boot 那一大包依賴。改一行程式碼等一分半，一天下來浪費的時間很可觀。
+先看錯誤示範。`COPY . .` 把整個專案都複製進去，包含所有 Java 檔。我們只要改一行 Controller，這一層就失效，後面的 gradlew 整條重跑，重新下載 Spring Boot 那一大包依賴。
 
-正確示範的思路是：把「很少變的」跟「一直變的」分開。build.gradle 我們可能兩個禮拜才動一次，src 底下的檔案一天改二十次。所以先只複製 gradlew、settings.gradle、build.gradle 跟 gradle wrapper 目錄，跑一次 dependencies 把所有依賴抓進 image 的那一層；接著才複製 src，跑 bootJar。這樣只要沒動 build.gradle，依賴那層永遠命中快取，重 build 只要重跑編譯那一步。
+正確示範的思路，是把很少變的和一直變的分開。build.gradle 可能兩週才改一次，src 底下的檔案一天改二十次。所以先只複製 Gradle 的設定檔，跑 dependencies 把依賴鎖在一層。接著才複製 src，執行 bootJar。
 
-注意 `--no-daemon` 這個參數：Gradle 平常會在背景留一個 daemon 行程加速後續建構，但容器建構是一次性的，留 daemon 只會讓 build 卡住不結束，所以在 Dockerfile 裡一律要加。
+這樣只要沒動 build.gradle，依賴那層永遠命中快取。下面寫的差距是，從一兩分鐘縮短到十幾秒，而這每天會發生好幾十次。
 
-順帶一提，apt-get update 跟 install 一定要用 && 寫在同一條 RUN，這是同樣的快取陷阱，只是換成 Debian 套件。⚠️ 這個坑很隱蔽，build 不會報錯，只是悄悄裝到舊版套件。
+另外注意 `--no-daemon`。容器裡的 build 是一次性的，Gradle 留下背景 daemon 沒有意義，所以在 Dockerfile 裡一律加上。
 -->
 
 ---
@@ -304,17 +324,13 @@ docker build --no-cache -t taskboard-api:1.0.0 .
 ```
 
 <!--
-這頁的觀念很重要，先講結論：常常改動的東西放後面，很少改動的東西放前面。
+這一頁把剛才的觀念整理成原則。
 
-為什麼呢？因為 Docker 是由上往下比對的，只要某一行的內容變了，那一行『以及它之後的所有行』都要重新跑，不管後面那些行本身有沒有變。
+「把常變動的指令放後面，把穩定不變的指令放前面，快取效益才會最大。」
 
-TaskBoard 的兩個服務剛好是同一個模式：後端的 build.gradle 對應前端的 package.json，兩者都是「很少改的依賴清單」；後端的 src/main/java 對應前端的 src/app，兩者都是「天天改的原始碼」。順序都是先複製清單、裝依賴，再複製原始碼、編譯。
+TaskBoard 的前後端剛好是同一個模式。後端的 build.gradle 對應前端的 package.json，都是很少改的依賴清單。後端的 Java 原始碼對應前端的 TypeScript，都是天天改的。所以順序都一樣，先複製清單、安裝依賴，再複製原始碼、編譯。
 
-至於什麼時候該用 --no-cache？最常見的情境是懷疑快取「髒了」——比方說明明改了設定卻沒生效，或者 CI 上要確保完全乾淨的建構。平常開發不要加，加了就完全沒有快取加速可言。
-
-如果我們想要完全不使用任何舊快取，可以加上 --no-cache，這在確認環境乾淨、或者懷疑快取有問題時很有用。
-
-⚠️ 大家想像一下，如果反過來把原始碼放前面、依賴清單放後面，那我們每改一行程式碼，後面裝套件的那一大串全部都要重跑，build 時間會拖得很長，這就是順序沒排好的代價。
+至於 `--no-cache`，會強制忽略所有快取，從頭跑一次。通常用在懷疑快取有問題的時候，例如明明改了設定卻沒生效，或是 CI 要確保完全乾淨的建構。平常開發不要加，加了就完全沒有加速效果。
 -->
 
 ---
@@ -325,7 +341,7 @@ class: flex flex-col justify-center items-center text-center
 # Multi-stage Build 與 .dockerignore
 
 <!--
-第三部分我們來看兩個能讓映像檔更精簡、更乾淨的技巧：multi-stage build（多階段建構）跟 .dockerignore。
+第三部分，我們來看兩個讓 Image 更精簡、更乾淨的技巧，Multi-stage Build 和 .dockerignore。
 -->
 
 ---
@@ -342,13 +358,15 @@ class: flex flex-col justify-center items-center text-center
 | 多個 `FROM` | 一份 Dockerfile 可以有多個建構階段 |
 
 <!--
-之前我們寫的 Dockerfile 都只有一個 FROM，所有建構工具、原始碼、最後產出的東西全部都疊在同一個 image 裡，這樣 image 會很肥大，裡面塞了一堆 build 完就用不到的東西，例如編譯器、開發套件。
+之前的 Dockerfile 都只有一個 FROM。編譯工具、原始碼和最後的成品，全部疊在同一個 Image 裡，裡面塞滿了 build 完就用不到的東西。
 
-Multi-stage build 解決的就是這個問題。我們可以開多個階段，前面的階段負責「做菜」——編譯程式碼、安裝開發套件；最後一個階段負責「裝盤」——只把做好的成品複製過來，其他半成品跟廚房裡的鍋碗瓢盆（建構工具）通通不會帶到最終的 image 裡。
+「Multi-stage build，一份 Dockerfile 包含多個建構階段，只把需要的成品搬進最終 image。」
 
-用 COPY --from=階段名稱，就能把前面階段的產出物指定複製過來。
+延續食譜的比喻，前面的階段負責在廚房做菜，最後一個階段負責裝盤。端給客人的只有做好的菜，廚房裡的鍋碗瓢盆不會一起端出去。
 
-⚠️ 大家要記得，中間階段不會出現在最終 image 裡，所以如果要 debug 中間階段的內容，可以用 --target 指定 build 到那個階段就好，方便檢查。
+語法上，`FROM` 後面加 `AS` 幫階段取名字，再用 `COPY --from` 從那個階段把檔案拿過來。
+
+如果想檢查中間階段的內容，可以用 `--target` 指定只 build 到那個階段。
 -->
 
 ---
@@ -380,19 +398,15 @@ ENTRYPOINT ["java", "-jar", "app.jar"]
 </div>
 
 <!--
-這頁是整章的重頭戲，也是大家之後真的會複製貼上到專案裡用的 Dockerfile。
+這一頁是整章的重點，也是之後會直接放進專案裡用的 Dockerfile。
 
-先看第一階段。FROM gradle:8.10-jdk21 AS build，這個 image 裡面有完整 JDK 21 跟 Gradle，所以編譯這件事整個搬進容器裡做了。這解決了前面提到的問題：現在不管是誰的電腦、或是 CI 伺服器，只要有 Docker 就能 build，完全不需要在本機裝 JDK 21，也不會有「我電腦是 JDK 17 所以 build 失敗」這種事。
+第一階段用 `gradle:8.10-jdk21`，裡面有完整的 JDK 和 Gradle，所以編譯整個搬進容器裡做。不管誰的電腦或 CI 伺服器，只要有 Docker 就能 build，不用再擔心本機的 JDK 版本。中間幾行就是剛才講的快取排序。
 
-中間那幾行就是我們剛剛講的快取排序：先 gradlew 跟 build.gradle，抓依賴，再 src，才 bootJar。
+第二階段是關鍵。重新從 `eclipse-temurin:21-jre-alpine` 開始，注意是 jre 不是 jdk，我們只需要執行，不需要編譯器。再用 `COPY --from=build` 把第一階段產出的 jar 拿過來。
 
-第二階段是關鍵。FROM eclipse-temurin:21-jre-alpine 重新開一個乾淨的環境，注意是 jre 不是 jdk——我們只要「跑」jar，不需要編譯器。然後用 COPY --from=build 把第一階段產出的 jar 撈過來。
+結果是，第一階段將近 1GB 的 JDK、Gradle、依賴快取和原始碼，全部留在原地。最終 Image 只有大約 200MB。Image 越小，push、pull、部署都越快，裡面沒有編譯器和原始碼，也更安全。
 
-大家想一下差別有多大：第一階段那個容器裡有 JDK、有 Gradle、有整個 ~/.gradle 的依賴快取、有全部原始碼，加起來快 1GB。這些東西對「執行」一點用都沒有，全部被丟掉了。最終 image 只有 Alpine + JRE + 一支 jar，200MB 左右。
-
-這不只是省硬碟。image 越小，push 越快、pull 越快、部署越快，而且攻擊面越小——image 裡沒有編譯器跟原始碼，就算被攻進去能做的事也少。
-
-⚠️ 這裡的 COPY --from=build 用了 *.jar 萬用字元，前提是 build/libs 底下只有一支 jar。如果 Gradle 同時產出 plain jar，記得在 build.gradle 關掉 `jar { enabled = false }`，否則會複製到錯的那支，容器一跑就報 no main manifest attribute。
+要注意 `*.jar` 這個寫法，前提是 build 目錄底下只有一支 jar。如果 Gradle 也產出了 plain jar，要在 build.gradle 把它關掉，不然可能複製到錯的那支。
 -->
 
 ---
@@ -422,17 +436,15 @@ EXPOSE 80
 </div>
 
 <!--
-前端這份比後端更能感受到 multi-stage 的價值。
+前端比後端更能感受到 Multi-stage 的價值。
 
-大家想想 Angular 專案的 node_modules 有多大，隨便都是幾百 MB 到 1GB。但這些東西是「編譯時」才需要的——Angular 編譯完就是一堆 HTML、CSS、JS 靜態檔案，瀏覽器下載它們就能跑，執行階段完全不需要 Node，更不需要 node_modules。
+Angular 專案的 node_modules 動輒幾百 MB 到 1GB。但這些只有編譯時需要，編譯完就是一堆 HTML、CSS、JS 靜態檔，執行時完全用不到 Node。
 
-所以第一階段用 node:20-alpine 跑 npm ci 跟 npm run build，第二階段直接換成 nginx，只把 dist 底下的產出物複製到 nginx 的預設網站根目錄。最終 image 五十幾 MB，裡面連 Node 都沒有。
+所以第一階段用 node 執行 `npm ci` 和 `npm run build`，第二階段直接換成 nginx，只把 dist 底下的產出物複製到 nginx 的網站目錄。最終 Image 大約 50MB，裡面連 Node 都沒有。
 
-注意 `npm ci` 不是 `npm install`。ci 會嚴格照著 package-lock.json 安裝，版本完全鎖定，而且會先清空 node_modules，這正是我們要的可重現建構；install 則可能會去更新 lock 檔，同一份程式碼在不同時間 build 出不同結果。容器建構一律用 ci。
+注意這裡用的是 `npm ci`，不是 `npm install`。ci 會嚴格照著 lock 檔安裝，版本完全固定，每次 build 結果都一樣。容器建構一律用 ci。
 
-⚠️ 那個 dist 路徑要注意版本差異：Angular 17 之後預設輸出到 `dist/<專案名>/browser`，17 以前是 `dist/<專案名>`。路徑寫錯的話 build 會過，但容器跑起來打開網頁是 nginx 的預設歡迎頁或 404。第三章教的 `docker exec -w /usr/share/nginx/html taskboard-web ls` 就是拿來查這個的。
-
-至於那個 nginx.conf，主要是設定 Angular 路由的 fallback（所有找不到的路徑都回 index.html），還有把 /api 轉發到後端——這個第六章會完整講。
+另外 dist 路徑有版本差異，Angular 17 之後多了一層 browser。路徑寫錯的話，build 會成功，但打開網頁只會看到 nginx 的預設頁面。
 -->
 
 ---
@@ -449,25 +461,59 @@ EXPOSE 80
 | 常見排除對象 | `node_modules`、`build/`、`.gradle/`、`.git`、本機環境檔 |
 | 效益 | 縮小建構上下文、避免機密檔案被打包、加快 build 速度 |
 
+<!--
+最後一個技巧是 .dockerignore。
+
+「.dockerignore 用來排除不需要送進建構上下文的檔案」，寫法跟大家熟悉的 .gitignore 幾乎一樣。
+
+為什麼需要它？前面說過，`docker build` 會把整個目錄送進建構上下文。TaskBoard 前端的 node_modules 動輒 1GB，後端的 .gradle 和 build 目錄也有幾百 MB。這些全部送進去，光是傳送就要等好幾十秒，而且進去之後，第一階段還會重新安裝一次，完全白費。
+
+表格的最後一列也很重要，它還能避免機密檔案被打包進去，下一頁的範例會看到。
+-->
+
+---
+
+# .dockerignore — 範例
+
+TaskBoard 前後端各放一份，與各自的 Dockerfile 同一層：
+
+<div class="grid grid-cols-2 gap-6">
+
+<div>
+
 ```plaintext
-# taskboard-api/.dockerignore        # taskboard-web/.dockerignore
-.git                                 # .git
-.gradle/                             # node_modules/
-build/                               # dist/
-*.md                                 # .env*
+# taskboard-api/.dockerignore
+.git
+.gradle/
+build/
+*.md
 src/main/resources/application-local.yml
 ```
 
+</div>
+
+<div>
+
+```plaintext
+# taskboard-web/.dockerignore
+.git
+node_modules/
+dist/
+.env*
+```
+
+</div>
+
+</div>
+
 <!--
-.dockerignore 這個檔案的用法，跟大家熟悉的 .gitignore 幾乎一模一樣，寫法也是每行一個排除規則。
+TaskBoard 的前後端各放一份 .dockerignore，跟各自的 Dockerfile 在同一層。
 
-它解決的問題是：docker build 執行時，會把當前目錄整個打包成「建構上下文」送給建構程序。TaskBoard 兩個專案都有很痛的例子——前端的 node_modules 動輒 1GB，後端的 .gradle 快取跟 build 目錄也是幾百 MB，這些全部都會被送進去，光是「送」就要等好幾十秒，而且送進去之後第一階段還會用 npm ci / gradlew 重做一次，完全是白費工。
+左邊是後端，排除 Gradle 的快取和 build 目錄，還有 `application-local.yml`，這個檔案常常放著本機資料庫的密碼。右邊是前端，排除 node_modules、dist，以及 `.env` 開頭的檔案，裡面常有 API key。
 
-資安面更要小心。後端專案裡常有 `application-local.yml` 放著本機資料庫密碼，前端常有 `.env` 放 API key，這些都絕對不能進 image——因為 image 是會被 push 到 registry 的，任何人 pull 下來都能翻出來看。
+這些機密絕對不能進 Image。Image 會被 push 到 Registry，任何人拉下來都能翻出來看。
 
-順帶一提，排除所有 Markdown 只要寫一行 *.md 就可以了。
-
-⚠️ 易錯點：.dockerignore 只影響「建構上下文」要不要送進去，不等於 image 裡不會出現這些檔案。如果 Dockerfile 裡用 COPY . . 把整個上下文複製進去，那有沒有 .dockerignore 排除掉 .env，會直接決定機密檔案會不會被打包進最終 image，這點務必小心。
+要特別提醒，.dockerignore 決定的是哪些檔案會送進建構上下文。如果 Dockerfile 寫了 `COPY . .`，有沒有排除 `.env`，就直接決定機密會不會被打包進 Image。
 -->
 
 ---
@@ -493,6 +539,18 @@ CMD ["java", "-jar", "build/libs/taskboard-api-1.0.0.jar"]
 1. 調整指令順序，讓「只改 `src/` 、沒改 `build.gradle`」時，依賴下載那層可以吃到 layer cache
 2. 實測：改一行 Controller 再 build 一次，觀察哪幾步顯示 `CACHED`
 
+<!--
+接下來是練習一，修好 taskboard-api 的 Dockerfile。
+
+同事寫的這份可以動，但每改一行 Java，就要重新下載所有依賴，build 一次要一分半。任務是調整指令順序，讓只改 src 的時候，依賴那層能吃到快取，並且實際 build 兩次，觀察哪幾步出現 CACHED。
+
+請大家先想一個問題：這份 Dockerfile 裡，哪一行讓快取整個失效了？
+
+我們先暫停一下，自己動手試試看。
+
+【講師】給大家五到八分鐘，提醒一定要真的 build 兩次比較時間。
+-->
+
 ---
 layout: default
 ---
@@ -517,6 +575,16 @@ RUN ./gradlew bootJar --no-daemon
 ⚠️ <b>常見錯誤：</b> 只 COPY 了 <code>build.gradle</code> 卻忘記 <code>gradle/</code> 目錄，build 會失敗在 <code>gradlew: gradle-wrapper.jar not found</code>。
 </div>
 
+<!--
+我們來看解題的關鍵。
+
+回答剛才的問題，是 `COPY . .` 這一行。它把原始碼和建構檔一起複製，只要改了任何一個 Java 檔，這層就失效，後面的下載依賴全部重跑。
+
+解法就是把改動頻率低的先複製。Gradle 需要的是四樣東西，gradlew、settings.gradle、build.gradle，以及 gradle 目錄。先用它們跑 dependencies，最後才複製 src 執行 bootJar。
+
+下面的常見錯誤，很多人都會犯。只複製了 build.gradle，卻忘了 gradle 目錄。gradlew 只是一個腳本，真正的執行邏輯在 wrapper 的 jar 檔裡，少了它 build 就會失敗。
+-->
+
 ---
 layout: default
 ---
@@ -536,12 +604,37 @@ EXPOSE 4200
 CMD ["npx", "http-server", "dist/taskboard-web/browser"]
 ```
 
-任務：
+<!--
+練習二是這一章的驗收題，把 taskboard-web 改成 Multi-stage。
+
+先看目前的狀況。這份 Dockerfile 用 node 一路做到底，建出來的 Image 有 1.2GB，而且裡面看得到完整的原始碼和 `.env`。
+
+請大家先想一想：這個 Image 裡，哪些東西是執行時根本用不到的？
+
+下一頁是具體的任務要求。
+-->
+
+---
+layout: default
+---
+
+# 練習 2：把 taskboard-web 改成 Multi-stage
+### 任務要求
 
 1. 改寫成 multi-stage：第一階段用 Node 編譯，第二階段換成 `nginx:1.27-alpine`，只複製 `dist/taskboard-web/browser` 的產出物
 2. 把 `npm install` 換成 `npm ci`，並調整順序讓依賴安裝能吃快取
 3. 新增 `.dockerignore`，確保 `node_modules`、`dist`、`.env` 不會被送進建構上下文
 4. 驗證：`docker images` 比較改寫前後的大小，並進容器確認裡面沒有 `.ts` 原始碼與 `.env`
+
+<!--
+任務有四步。第一，改寫成 Multi-stage，第一階段用 Node 編譯，第二階段換成 nginx，只複製 dist 底下的產出物。第二，把 `npm install` 換成 `npm ci`，並調整順序吃快取。第三，加上 .dockerignore。第四，比較改寫前後的大小，並進容器確認沒有原始碼和 `.env`。
+
+這題把 Multi-stage、npm ci 和 .dockerignore 三個技巧結合在一起。
+
+我們先暫停一下，自己動手試試看。
+
+【講師】給大家十分鐘左右，提醒第四步的驗證一定要做。
+-->
 
 ---
 layout: default
@@ -577,17 +670,13 @@ dist
 </div>
 
 <!--
-這兩題練習的講稿放在這裡一起講。
+我們來看解答。
 
-練習一是快取排序，重點是讓大家自己動手體會「順序改一下，build 時間從 90 秒變 15 秒」。請務必真的 build 兩次比較，光看投影片沒有感覺。那個提示裡的常見錯誤我特別標出來，因為十個人有八個會忘記 COPY gradle 目錄——gradlew 只是一個 shell 腳本，真正的執行邏輯在 gradle/wrapper/gradle-wrapper.jar 裡面。
+回答剛才的問題。執行時用不到的，包括 Node 本身、整個 node_modules、TypeScript 原始碼，還有 `.env`。所以第一階段負責編譯，第二階段從 nginx 重新開始，只把編譯好的靜態檔複製過去。
 
-練習二是這章的驗收題，把 multi-stage、npm ci、.dockerignore 三個技巧結合起來。1.2GB 變 50MB，這個數字差距最能讓大家記住 multi-stage 的價值。
+很多人會以為用了 Multi-stage 就安全了。但如果 .dockerignore 沒排除 `.env`，第一階段的 `COPY . .` 還是會把它讀進去，只要哪個階段不小心複製到，就會外洩。所以這兩個技巧要一起用。
 
-⚠️ 另外提醒第 4 步的驗證一定要做。很多人以為「我沒有 COPY .env 就沒事」，但只要寫了 COPY . . 而 .dockerignore 沒排除，機密就進 image 了，而且 image 一 push 到 registry 全公司都看得到。
-
-⚠️ 易錯點：很多人會忘記，就算用了 multi-stage build，如果 .dockerignore 沒排除 .env，第一階段 COPY . . 的時候還是會把 .env 讀進建構上下文，只是不一定會出現在『最終』image 裡，但只要哪個階段不小心 COPY 到它，就會外洩，所以兩個技巧要一起用才安全。
-
-大家做完可以自己 docker build 一次，然後用 docker images 看看體積差多少，會很有成就感。
+最後進容器檢查，應該找不到任何 ts 檔，Image 也從 1.2GB 降到大約 50MB。
 -->
 
 ---
@@ -621,13 +710,11 @@ layout: default
 </div>
 
 <!--
-今天這一章的內容比較扎實，我們快速複習一下。
+我們回顧一下這一章。
 
-我們學了 Dockerfile 最核心的幾個指令，也搞懂了 CMD 跟 ENTRYPOINT 的差異。接著理解了 docker build 背後的 layer 跟快取機制，知道指令順序會直接影響 build 速度。最後學了 multi-stage build 跟 .dockerignore 這兩個能讓 image 更精簡、更安全的技巧。
+第一，Dockerfile 用幾個常用指令把組 Image 的步驟寫下來，ENTRYPOINT 決定跑什麼，CMD 決定預設參數。第二，`docker build` 每一行產生一個 layer。第三，Layer Cache 由上而下比對，常變動的指令要放後面。第四，Multi-stage Build 只把成品搬進最終 Image。最後，.dockerignore 讓 build 更快，也避免機密外洩。
 
-⚠️ 版本注意：今天特別提醒兩個版本相關的重點，一個是 ENV 語法要用等號寫法，另一個是 Docker 23.0 之後 build 預設就是用 BuildKit，這兩個都是這幾年 Docker 生態系的現行標準，大家寫新的 Dockerfile 就照這個標準寫。
-
-下一章我們會進入 Docker Compose，把多個 container 組合起來一起管理，我們下堂課見。
+下一章，我們要用 Docker Compose，把 TaskBoard 的三個服務一次啟動。
 -->
 
 ---
@@ -639,9 +726,9 @@ layout: end
 有任何問題嗎？
 
 <!--
-現在開放 Q&A 時間。
+這一章我們親手為 TaskBoard 寫出了前後端的 Dockerfile，也學會讓 build 更快、Image 更小、更安全。
 
-大家對 Dockerfile 常用指令、Layer Cache 機制，或是 Multi-stage Build，有沒有什麼疑問？都歡迎提出來討論。
+建議大家自己動手寫一份 Dockerfile 並 build 一次，實際做過一次，比看投影片有用得多。我們下一章見。
 
-如果對 FROM、COPY、RUN 這些指令還不熟，建議回去自己動手寫一份簡單的 Dockerfile 練習一下，實際 build 過一次比看十次投影片都有用。
+【講師】開放 Q&A，可以引導大家回想 CMD 和 ENTRYPOINT 的差別、快取順序的原則。
 -->

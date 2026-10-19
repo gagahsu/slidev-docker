@@ -9,6 +9,11 @@
   border: none !important;
 }
 
+/* Penguin theme caps code blocks at 600px; use full slide width */
+.slidev-layout .slidev-code-wrapper {
+  max-width: none !important;
+}
+
 /* Code blocks: no scrollbars, wrap content for clean PDF export */
 .slidev-layout pre,
 .slidev-layout .shiki,
